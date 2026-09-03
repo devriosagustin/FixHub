@@ -79,6 +79,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (pathname.startsWith("/admin") && auth.user.rol !== "ADMIN") {
         return false;
       }
+      // Area de cliente solo para CLIENTE o ADMIN (trabajos publicados)
+      if (
+        pathname.startsWith("/cliente") &&
+        auth.user.rol !== "CLIENTE" &&
+        auth.user.rol !== "ADMIN"
+      ) {
+        return false;
+      }
+      // Ver/postularse a trabajos: solo PROFESIONAL o ADMIN (no clientes)
+      if (
+        pathname.startsWith("/trabajos") &&
+        auth.user.rol !== "PROFESIONAL" &&
+        auth.user.rol !== "ADMIN"
+      ) {
+        return false;
+      }
       // Profesional o Admin para /profesional/perfil
       if (
         (pathname.startsWith("/profesional/perfil") ||

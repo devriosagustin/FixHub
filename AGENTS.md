@@ -43,6 +43,14 @@ Dejar funcionando el cobro de suscripciones en la web (Next.js + Prisma + Postgr
   - API `POST /api/profesionales` y `PUT /api/profesionales/[id]`: aceptan y guardan `whatsapp` (Zod opcional con regex en POST).
   - Formularios `src/app/profesional/registro/page.tsx` y `src/app/profesional/perfil/page.tsx`: campo "WhatsApp" agregado (estado, carga, envío, input).
   - `src/app/(dashboard)/perfil/[id]/ProfileClient.tsx`: botón "Llamar" (`tel:`) reemplazado por "Enviar WhatsApp" (`wa.me`) en el CTA y en el sidebar de contacto. Icono WhatsApp: SVG custom (componente `IconoWhatsApp`) porque lucide no lo tiene. Solo se muestra si el profesional cargó `whatsapp`. `tsc --noEmit` exit 0.
+- **Feature Trabajos publicados por clientes completada** (commit pendiente):
+  - **Schema**: modelos `Trabajo` (`clienteId`, `titulo`, `descripcion`, `oficioId`, `ciudad`, `barrio`, `tipoContratacion` enum, `presupuestoMin/Max`, `fechaLimite`, `estado` enum ABIERTO/EN_PROCESO/CERRADO, `whatsappContacto`, `createdAt`) + `Postulacion` (`trabajoId`, `perfilId`, `mensaje`, `presupuesto`, `estado`, `@@unique([trabajoId, perfilId])`). Enums `EstadoTrabajo`, `TipoContratacion` (POR_HORA/PRESUPUESTO/CONVENIR). Relaciones inversas en `Usuario` (trabajosPublicados), `Oficio` (trabajos) y `PerfilProfesional` (postulaciones). `prisma db push` + generate (sin EPERM, no había lock).
+  - **Helper** `src/lib/suscripcion.ts`: `obtenerSuscripcionActivaDeUsuario()` y `tieneSuscripcionPagaActiva()` (plan pago PROFESIONAL/PREMIUM con estado ACTIVA y fechaFin no vencida).
+  - **APIs**: `POST /api/trabajos` (rol CLIENTE, Zod), `GET /api/trabajos` (rol PROFESIONAL, filtros oficioId/ciudad/presupuestoMax, devuelve `tieneAcceso`), `GET /api/trabajos/mios` (trabajos del cliente + `_count.postulaciones`), `GET /api/trabajos/[id]` (dueño ve postulaciones; profesional suscrito ve contacto del cliente y oculta postulaciones), `POST /api/trabajos/[id]/postular` (profesional con suscripción paga, notifica al cliente con `NUEVO_CONTACTO`).
+  - **Páginas cliente**: `/cliente/trabajos` (mis trabajos + estado + postulaciones), `/cliente/trabajos/nuevo` (publicar), `/cliente/trabajos/[id]` (ver postulaciones + "Conversar" vía `/api/chat/conversaciones`).
+  - **Páginas profesional**: `/trabajos` (listado con filtros oficio/ciudad, banner de suscripción si `!tieneAcceso`), `/trabajos/[id]` (detalle, bloquea con pantalla de suscripción si 403 `requiereSuscripcion`, formulario de postulación + presupuesto).
+  - **Navbar**: CLIENTE → "Publicar trabajo" (`/cliente/trabajos/nuevo`); PROFESIONAL → "Trabajos" (`/trabajos`). `auth.ts`: rutas `/cliente/*` requieren CLIENTE/ADMIN, `/trabajos*` requieren PROFESIONAL/ADMIN.
+  - Verificado: typecheck exit 0, `npm run build` exit 0 (59 páginas). E2E de capa de datos: crear trabajo (enum TipoContratacion/EstadoTrabajo + whatsappContacto OK), listado con filtro oficio+ciudad insensitive, detalle con cliente, limpieza correcta. Helper suscripción: rios.agustin.med/test@test → tienePaga=true; admin → false. NO hay usuarios CLIENTE en la DB aún.
 
 ### Siguiente
 - Tras conectar el MCP, reiniciar la app de escritorio de opencode para exponer las tools del MCP en futuras sesiones.
@@ -52,17 +60,11 @@ Dejar funcionando el cobro de suscripciones en la web (Next.js + Prisma + Postgr
 
 ## Backlog / Roadmap (features planificadas)
 
-### Trabajo (Empleo) publicado por clientes — NUEVO
-- **Modelo Prisma nuevo** `Trabajo` (+ enums `EstadoTrabajo`, `TipoTrabajo`): campos propuestos: `clienteId` (Usuario), `titulo`, `descripcion`, `oficioId`, `ciudad`, `presupuestoMin`/`presupuestoMax`, `fechaLimite`, `estado` (abierto/en-proceso/cerrado), `createdAt`. Relación N:1 a Usuario (cliente) y a Oficio.
-- **Publicación de trabajo** (cliente): ruta/UI de publicar trabajo (accesible a rol CLIENTE). Endpoint `POST /api/trabajos`.
-- **Listado/visor de trabajos** (profesional): página para que profesionales suscritos vean trabajos abiertos, con **filtros** (por oficio, ciudad, presupuesto, fecha). Acceso restringido a profesionales con suscripción ACTIVA (`getLimite`/`tieneAcceso`).
-- **Contactar al cliente/publicar mensaje**: profesional manda mensaje/presupuesto a los trabajos. Reutilizar `Conversacion`+`Mensaje` o crear candidatura.
-- Acceso por suscripción: solo profesionales suscritos ven/filtran/postulan (fase de pago).
-
 ### Otros / pendientes
 - Notificaciones push (hoy solo browser Notification API en chat).
-- Sistema formal de presupuestos/cotizaciones.
+- Sistema formal de presupuestos/cotizaciones (hoy se hace vía postulación con campo presupuesto).
 - Matching profesional↔trabajo por oficio/ubicación.
+- Crear usuario CLIENTE de prueba en la DB para validar el flujo de trabajos completo en el navegador.
 
 ## Archivos relevantes
 - `src/app/api/suscripcion/checkout/route.ts`: flujo de creación de preferencia MP; fix de back_urls/auto_return (líneas ~106-149). Body: `{ plan: "PROFESIONAL"|"PREMIUM" }`. Requiere sesión autenticada y perfil `APROBADO`. Retorna `checkout_url` (sandbox_init_point en TEST, init_point en prod).
@@ -72,6 +74,9 @@ Dejar funcionando el cobro de suscripciones en la web (Next.js + Prisma + Postgr
 - `src/app/api/profesionales/route.ts` y `src/app/api/profesionales/[id]/route.ts`: APIs profesionales (POST acepta `whatsapp` opcional con regex; PUT actualiza `whatsapp`).
 - `src/lib/whatsapp.ts`: helper Fase A. `normalizarWhatsApp()` (E.164 sin `+`, asume 54 AR) y `urlWhatsApp(num, texto?)` → `https://wa.me/<número>` o null.
 - `src/app/(dashboard)/perfil/[id]/ProfileClient.tsx`: perfil público profesional; CTA + sidebar usan "Enviar WhatsApp" (`wa.me` desde `perfil.whatsapp`), componente `IconoWhatsApp` (SVG custom).
+- `src/lib/suscripcion.ts`: helper de acceso por suscripción. `obtenerSuscripcionActivaDeUsuario()` y `tieneSuscripcionPagaActiva()` (plan pago PROFESIONAL/PREMIUM, estado ACTIVA, fechaFin válida). Usado para el gating de trabajos.
+- `src/app/api/trabajos/route.ts` (`POST` crear rol CLIENTE / `GET` listar rol PROFESIONAL con filtros + `tieneAcceso`), `src/app/api/trabajos/mios/route.ts` (GET trabajos del cliente), `src/app/api/trabajos/[id]/route.ts` (GET detalle, gating suscripción), `src/app/api/trabajos/[id]/postular/route.ts` (POST postulación profesional).
+- `src/app/cliente/trabajos/*` (mis trabajos, nuevo, detalle) y `src/app/trabajos/*` (listado y detalle para profesionales). Navbar y `auth.ts` con rutas por rol (`/cliente/*` CLIENTE/ADMIN, `/trabajos*` PROFESIONAL/ADMIN).
 - `opencode.json`: config MCP MercadoPago remoto con `oauth: {}` (sin header).
 - `.env`: credentials (DATABASE_URL, MERCADOPAGO_ACCESS_TOKEN/PUBLIC_KEY, NEXT_PUBLIC_APP_URL=http://localhost:3000, Google/Cloudinary).
 - `dev-server.log`: log de arranque del dev server en Windows (los requests de `next dev` no van necesariamente ahí).

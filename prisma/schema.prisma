@@ -47,6 +47,7 @@ model Usuario {
   conversaciones      Conversacion[]        @relation("ConversacionCliente")
   notificaciones      Notificacion[]
   documentos          DocumentoVerificacion[]
+  trabajosPublicados  Trabajo[]             @relation("ClienteTrabajos")
 }
 
 // =============================================
@@ -99,6 +100,7 @@ model PerfilProfesional {
   suscripcion           Suscripcion?
   conversaciones        Conversacion[]
   documentos            DocumentoVerificacion[]
+  postulaciones         Postulacion[]
 
   @@index([ciudad, latitud, longitud])
   @@index([estado])
@@ -116,6 +118,7 @@ model Oficio {
   activo      Boolean  @default(true)
 
   profesionales OficioProfesional[]
+  trabajos      Trabajo[]
 }
 
 model OficioProfesional {
@@ -320,4 +323,61 @@ model Notificacion {
   leida       Boolean  @default(false)
   enlace      String?
   createdAt   DateTime @default(now())
+}
+
+// =============================================
+// TRABAJOS PUBLICADOS POR CLIENTES
+// =============================================
+
+enum EstadoTrabajo {
+  ABIERTO
+  EN_PROCESO
+  CERRADO
+}
+
+enum TipoContratacion {
+  POR_HORA
+  PRESUPUESTO
+  CONVENIR
+}
+
+model Trabajo {
+  id              String   @id @default(cuid())
+  clienteId       String
+  titulo          String
+  descripcion     String   @db.Text
+  oficioId        String
+  ciudad          String?
+  barrio          String?
+  tipoContratacion TipoContratacion @default(CONVENIR)
+  presupuestoMin  Float?
+  presupuestoMax  Float?
+  fechaLimite     DateTime?
+  estado          EstadoTrabajo @default(ABIERTO)
+  whatsappContacto String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  cliente         Usuario      @relation("ClienteTrabajos", fields: [clienteId], references: [id], onDelete: Cascade)
+  oficio          Oficio       @relation(fields: [oficioId], references: [id], onDelete: Restrict)
+  postulaciones   Postulacion[]
+
+  @@index([estado, ciudad])
+  @@index([oficioId])
+  @@index([clienteId])
+}
+
+model Postulacion {
+  id          String   @id @default(cuid())
+  trabajoId   String
+  perfilId    String
+  mensaje     String   @db.Text
+  presupuesto Float?
+  estado      String   @default("ENVIADA")
+  createdAt   DateTime @default(now())
+
+  trabajo     Trabajo           @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  perfil      PerfilProfesional @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@unique([trabajoId, perfilId])
 }

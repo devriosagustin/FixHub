@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { Menu, X, Search, User, Briefcase, LogOut, LayoutDashboard, UserCircle, MessageCircle, CreditCard, Bell } from "lucide-react";
+import { Menu, X, Search, User, Briefcase, LogOut, LayoutDashboard, UserCircle, MessageCircle, CreditCard, Bell, ClipboardList } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
 
 export function Navbar() {
@@ -14,6 +14,7 @@ export function Navbar() {
   const estaAutenticado = status === "authenticated";
   const esAdmin = session?.user?.rol === "ADMIN";
   const esProfesional = session?.user?.rol === "PROFESIONAL";
+  const esCliente = estaAutenticado && !esAdmin && !esProfesional;
 
   // Cargar mensajes no leídos cada 30 segundos (solo si está autenticado)
   useEffect(() => {
@@ -87,6 +88,17 @@ export function Navbar() {
                   </Link>
                 )}
 
+                {/* Si es cliente (no profesional), ofrecer publicar un trabajo */}
+                {esCliente && (
+                  <Link
+                    href="/cliente/trabajos/nuevo"
+                    className="flex items-center gap-1.5 text-sm font-medium text-white/80 transition-colors hover:text-white"
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    Publicar trabajo
+                  </Link>
+                )}
+
                 {/* Si es cliente (no profesional), ofrecer registrarse como profesional */}
                 {!esProfesional && !esAdmin && (
                   <Link
@@ -95,6 +107,17 @@ export function Navbar() {
                   >
                     <Briefcase className="h-4 w-4" />
                     Soy profesional
+                  </Link>
+                )}
+
+                {/* Si es profesional, ofrecer ver trabajos disponibles */}
+                {esProfesional && (
+                  <Link
+                    href="/trabajos"
+                    className="flex items-center gap-1.5 text-sm font-medium text-white/80 transition-colors hover:text-white"
+                  >
+                    <Briefcase className="h-4 w-4" />
+                    Trabajos
                   </Link>
                 )}
 
@@ -218,6 +241,26 @@ export function Navbar() {
                     >
                       <LayoutDashboard className="h-4 w-4" />
                       Panel Admin
+                    </Link>
+                  )}
+                  {esCliente && (
+                    <Link
+                      href="/cliente/trabajos/nuevo"
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      Publicar trabajo
+                    </Link>
+                  )}
+                  {esProfesional && (
+                    <Link
+                      href="/trabajos"
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <Briefcase className="h-4 w-4" />
+                      Ver trabajos
                     </Link>
                   )}
                   {!esProfesional && !esAdmin && (
