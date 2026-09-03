@@ -12,6 +12,7 @@ const schemaRegistroProfesional = z.object({
   ciudad: z.string().min(1, "La ciudad es obligatoria"),
   barrio: z.string().optional(),
   telefono: z.string().min(6, "El teléfono es obligatorio"),
+  whatsapp: z.string().regex(/^\+?[0-9\s()\-]+$/, "El número de WhatsApp no es válido").optional(),
   tipoPrecio: z.enum(["por_hora", "convenir"]).default("convenir"),
   precioPorHora: z.number().positive().optional(),
   oficios: z.array(z.string()).min(1, "Seleccioná al menos un oficio"),
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
           ciudad: datosValidados.ciudad,
           barrio: datosValidados.barrio,
           telefono: datosValidados.telefono,
+          whatsapp: datosValidados.whatsapp,
           tipoPrecio: datosValidados.tipoPrecio,
           precioPorHora: datosValidados.precioPorHora,
           estado: "PENDIENTE", // Esperando aprobación del admin

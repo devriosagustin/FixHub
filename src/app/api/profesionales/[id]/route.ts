@@ -102,6 +102,7 @@ export async function PUT(
       longitud: body.longitud,
       radioCobertura: body.radioCobertura,
       telefono: body.telefono,
+      whatsapp: body.whatsapp,
       sitioWeb: body.sitioWeb,
       instagram: body.instagram,
       facebook: body.facebook,

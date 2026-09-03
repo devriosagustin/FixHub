@@ -70,6 +70,7 @@ model PerfilProfesional {
   radioCobertura  Int?
 
   telefono        String?
+  whatsapp        String?
   sitioWeb        String?
   instagram       String?
   facebook        String?

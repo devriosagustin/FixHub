@@ -28,6 +28,7 @@ export default function RegistroProfesionalPage() {
   const [barrio, setBarrio] = useState("");
   const [direccion, setDireccion] = useState("");
   const [telefono, setTelefono] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [tipoPrecio, setTipoPrecio] = useState("convenir");
   const [precioPorHora, setPrecioPorHora] = useState("");
   const [oficiosSeleccionados, setOficiosSeleccionados] = useState<string[]>([]);
@@ -77,6 +78,7 @@ export default function RegistroProfesionalPage() {
           barrio,
           direccion,
           telefono,
+          whatsapp: whatsapp || undefined,
           tipoPrecio,
           precioPorHora: precioPorHora ? parseFloat(precioPorHora) : undefined,
           oficios: oficiosSeleccionados,
@@ -289,6 +291,22 @@ export default function RegistroProfesionalPage() {
                 required
                 className="w-full rounded-lg border border-border bg-white px-4 py-2.5 text-text outline-none transition-colors focus:border-orange focus:ring-2 focus:ring-orange/20"
               />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-text">
+                WhatsApp (con código de área)
+              </label>
+              <input
+                type="tel"
+                value={whatsapp}
+                onChange={(e) => setWhatsapp(e.target.value)}
+                placeholder="Ej: 11 5555 1234"
+                className="w-full rounded-lg border border-border bg-white px-4 py-2.5 text-text outline-none transition-colors focus:border-orange focus:ring-2 focus:ring-orange/20"
+              />
+              <p className="mt-1 text-xs text-text-light">
+                Los clientes podrán contactarte por WhatsApp con este número.
+              </p>
             </div>
 
             <div>

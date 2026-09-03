@@ -16,6 +16,7 @@ interface PerfilData {
   barrio: string;
   direccion: string;
   telefono: string;
+  whatsapp: string;
   sitioWeb: string;
   instagram: string;
   facebook: string;
@@ -58,6 +59,7 @@ export default function EditarPerfilProfesionalPage() {
   const [barrio, setBarrio] = useState("");
   const [direccion, setDireccion] = useState("");
   const [telefono, setTelefono] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [sitioWeb, setSitioWeb] = useState("");
   const [instagram, setInstagram] = useState("");
   const [facebook, setFacebook] = useState("");
@@ -111,6 +113,7 @@ export default function EditarPerfilProfesionalPage() {
     setBarrio(p.barrio || "");
     setDireccion(p.direccion || "");
     setTelefono(p.telefono || "");
+    setWhatsapp(p.whatsapp || "");
     setSitioWeb(p.sitioWeb || "");
     setInstagram(p.instagram || "");
     setFacebook(p.facebook || "");
@@ -179,6 +182,7 @@ export default function EditarPerfilProfesionalPage() {
           barrio,
           direccion,
           telefono,
+          whatsapp: whatsapp || undefined,
           sitioWeb,
           instagram,
           facebook,
@@ -401,6 +405,10 @@ export default function EditarPerfilProfesionalPage() {
                 <div>
                   <label className="mb-1 block text-sm font-medium text-text">Teléfono</label>
                   <input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} className="w-full rounded-lg border border-border bg-white px-4 py-2.5 text-text outline-none focus:border-orange focus:ring-2 focus:ring-orange/20" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-text">WhatsApp</label>
+                  <input type="tel" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="Ej: 11 5555 1234" className="w-full rounded-lg border border-border bg-white px-4 py-2.5 text-text outline-none focus:border-orange focus:ring-2 focus:ring-orange/20" />
                 </div>
               </div>
             </div>
