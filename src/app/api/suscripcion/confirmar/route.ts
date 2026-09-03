@@ -1,0 +1,111 @@
+/**
+ * API Route: POST /api/suscripcion/confirmar
+ *
+ * Confirma la suscripción al volver del checkout de MercadoPago.
+ *
+ * En entorno local, MercadoPago no puede alcanzar `localhost` para enviar
+ * el webhook, así que esta ruta consulta el estado REAL del pago al momento
+ * del retorno y activa la suscripción si corresponde. Comparte la lógica
+ * con el webhook (procesarPago).
+ *
+ * Body: { suscripcionId: string, paymentId?: string }
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { MercadoPagoConfig, Payment } from "mercadopago";
+import { obtenerPago, procesarPago } from "@/lib/mercadopago";
+
+/** Busca pagos de una suscripción por su external_reference. */
+async function obtenerPagosPorReferencia(externalReference: string) {
+  const paymentClient = new Payment(
+    new MercadoPagoConfig({
+      accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN!,
+    })
+  );
+  try {
+    const result = await paymentClient.search({
+      options: {
+        external_reference: externalReference,
+        sort: "date_approved",
+        criteria: "desc",
+      },
+    });
+    return result.results || [];
+  } catch (e) {
+    console.error("Error buscando pagos por referencia:", e);
+    return [];
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { suscripcionId, paymentId } = body;
+
+    if (!suscripcionId) {
+      return NextResponse.json({ error: "Se requiere suscripcionId" }, { status: 400 });
+    }
+
+    // Verificar que la suscripción pertenezca al profesional autenticado
+    const suscripcion = await prisma.suscripcion.findUnique({
+      where: { id: suscripcionId },
+      select: { perfilId: true },
+    });
+
+    if (!suscripcion) {
+      return NextResponse.json({ error: "Suscripción no encontrada" }, { status: 404 });
+    }
+
+    const perfil = await prisma.perfilProfesional.findUnique({
+      where: { id: suscripcion.perfilId },
+      select: { userId: true },
+    });
+
+    if (!perfil || perfil.userId !== session.user.id) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
+    // Si no tenemos paymentId, buscar el pago en MP por external_reference.
+    // El pago más reciente de la suscripción nos da el estado real.
+    let paymentIdReal = paymentId;
+    if (!paymentIdReal) {
+      const pagosMp = await obtenerPagosPorReferencia(suscripcionId);
+      paymentIdReal = pagosMp?.[0]?.id ? String(pagosMp[0].id) : null;
+    }
+
+    let estado = "no_encontrado";
+    if (paymentIdReal) {
+      const payment = await obtenerPago(paymentIdReal);
+      estado = payment.status || "unknown";
+      await procesarPago({
+        id: String(payment.id),
+        external_reference: payment.external_reference,
+        transaction_amount: payment.transaction_amount,
+        currency_id: payment.currency_id,
+        payment_method_id: payment.payment_method_id,
+        status: payment.status,
+        date_approved: payment.date_approved,
+      });
+    }
+
+    // Devolver el estado final de la suscripción
+    const suscripcionFinal = await prisma.suscripcion.findUnique({
+      where: { id: suscripcionId },
+    });
+
+    return NextResponse.json({
+      estado,
+      suscripcion: suscripcionFinal,
+    });
+  } catch (err) {
+    console.error("Error confirmando suscripción:", err);
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+  }
+}

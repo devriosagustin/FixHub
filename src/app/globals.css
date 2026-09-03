@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/* =============================================
+   FIXHUB - Paleta de colores personalizada
+   ============================================= */
+
+@theme inline {
+  /* Colores principales */
+  --color-navy: #1a365d;
+  --color-navy-light: #2a4a7f;
+  --color-navy-dark: #0f2440;
+  --color-orange: #ed8936;
+  --color-orange-light: #f6ad55;
+  --color-orange-dark: #dd6b20;
+
+  /* Colores secundarios */
+  --color-surface: #f7fafc;
+  --color-card: #ffffff;
+  --color-text: #2d3748;
+  --color-text-light: #718096;
+  --color-border: #e2e8f0;
+
+  /* Estados */
+  --color-success: #38a169;
+  --color-warning: #d69e2e;
+  --color-error: #e53e3e;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+}
+
+/* =============================================
+   ESTILOS GLOBALES
+   ============================================= */
+
+body {
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-navy-light);
+  border-radius: 4px;
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}

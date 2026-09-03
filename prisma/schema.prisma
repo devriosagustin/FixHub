@@ -1,0 +1,322 @@
+// =============================================
+// CONTRATAYA - Schema de Base de Datos
+// =============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================
+// USUARIOS Y AUTENTICACIÓN
+// =============================================
+
+enum Rol {
+  CLIENTE
+  PROFESIONAL
+  ADMIN
+}
+
+enum EstadoProfesional {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+  SUSPENDIDO
+}
+
+model Usuario {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  nombre        String
+  imagen        String?
+  rol           Rol      @default(CLIENTE)
+  googleId      String?  @unique
+  password      String?
+  resetToken        String?   @unique
+  resetTokenExpiry  DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  perfilProfesional   PerfilProfesional?    @relation("UsuarioPerfil")
+  resenasCreadas      Resena[]              @relation("ClienteResena")
+  mensajesEnviados    Mensaje[]             @relation("MensajeEmisor")
+  conversaciones      Conversacion[]        @relation("ConversacionCliente")
+  notificaciones      Notificacion[]
+  documentos          DocumentoVerificacion[]
+}
+
+// =============================================
+// PERFIL DEL PROFESIONAL
+// =============================================
+
+model PerfilProfesional {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  usuario         Usuario  @relation("UsuarioPerfil", fields: [userId], references: [id], onDelete: Cascade)
+
+  titulo          String?
+  descripcion     String?  @db.Text
+  anosExperiencia Int?
+
+  direccion       String?
+  ciudad          String?
+  barrio          String?
+  latitud         Float?
+  longitud        Float?
+  radioCobertura  Int?
+
+  telefono        String?
+  sitioWeb        String?
+  instagram       String?
+  facebook        String?
+
+  tipoPrecio      String   @default("convenir")
+  precioPorHora   Float?
+
+  videoUrl        String?
+
+  estado          EstadoProfesional @default(PENDIENTE)
+  verificado      Boolean  @default(false)
+  destacado       Boolean  @default(false)
+  fijado          Boolean  @default(false)
+
+  visitas         Int      @default(0)
+  contactos       Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  oficios               OficioProfesional[]
+  galeriaFotos          FotoGaleria[]
+  certificaciones       Certificacion[]
+  horarios              HorarioAtencion[]
+  resenas               Resena[]              @relation("ProfesionalResena")
+  suscripcion           Suscripcion?
+  conversaciones        Conversacion[]
+  documentos            DocumentoVerificacion[]
+
+  @@index([ciudad, latitud, longitud])
+  @@index([estado])
+}
+
+// =============================================
+// OFICIOS
+// =============================================
+
+model Oficio {
+  id          String   @id @default(cuid())
+  nombre      String   @unique
+  slug        String   @unique
+  icono       String?
+  activo      Boolean  @default(true)
+
+  profesionales OficioProfesional[]
+}
+
+model OficioProfesional {
+  id              String   @id @default(cuid())
+  perfilId        String
+  oficioId        String
+  perfil          PerfilProfesional @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+  oficio          Oficio           @relation(fields: [oficioId], references: [id], onDelete: Cascade)
+
+  @@unique([perfilId, oficioId])
+}
+
+// =============================================
+// GALERÍA DE FOTOS
+// =============================================
+
+model FotoGaleria {
+  id          String   @id @default(cuid())
+  perfilId    String
+  perfil      PerfilProfesional @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+  url         String
+  descripcion String?
+  orden       Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+// =============================================
+// CERTIFICACIONES
+// =============================================
+
+model Certificacion {
+  id          String   @id @default(cuid())
+  perfilId    String
+  perfil      PerfilProfesional @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+  nombre      String
+  url         String
+  tipo        String
+  createdAt   DateTime @default(now())
+}
+
+// =============================================
+// HORARIOS DE ATENCIÓN
+// =============================================
+
+model HorarioAtencion {
+  id          String   @id @default(cuid())
+  perfilId    String
+  perfil      PerfilProfesional @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+  diaSemana   Int
+  horaInicio  String
+  horaFin     String
+  activo      Boolean  @default(true)
+
+  @@unique([perfilId, diaSemana])
+}
+
+// =============================================
+// DOCUMENTOS DE VERIFICACIÓN (DNI)
+// =============================================
+
+enum EstadoDocumento {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+model DocumentoVerificacion {
+  id              String   @id @default(cuid())
+  usuarioId       String
+  perfilId        String
+  usuario         Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  perfil          PerfilProfesional @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+  tipo            String
+  url             String
+  estado          EstadoDocumento @default(PENDIENTE)
+  motivoRechazo   String?
+  createdAt       DateTime @default(now())
+}
+
+// =============================================
+// RESEÑAS
+// =============================================
+
+model Resena {
+  id              String   @id @default(cuid())
+  perfilId        String
+  clienteId       String
+  puntuacion      Int
+  comentario      String   @db.Text
+  fotoUrl         String?
+  aprobada        Boolean  @default(true)
+  motivoRechazo   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  perfil          PerfilProfesional @relation("ProfesionalResena", fields: [perfilId], references: [id], onDelete: Cascade)
+  cliente         Usuario          @relation("ClienteResena", fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@unique([perfilId, clienteId])
+}
+
+// =============================================
+// CHAT / MENSAJERÍA
+// =============================================
+
+model Conversacion {
+  id                  String   @id @default(cuid())
+  clienteId           String
+  profesionalId       String
+  initBy              String
+  ultimoMensajeAt     DateTime @updatedAt
+  activa              Boolean  @default(true)
+
+  cliente             Usuario            @relation("ConversacionCliente", fields: [clienteId], references: [id], onDelete: Cascade)
+  profesional         PerfilProfesional  @relation(fields: [profesionalId], references: [id], onDelete: Cascade)
+  mensajes            Mensaje[]
+
+  @@unique([clienteId, profesionalId])
+}
+
+model Mensaje {
+  id              String   @id @default(cuid())
+  conversacionId  String
+  emisorId        String
+  contenido       String   @db.Text
+  adjuntoUrl      String?
+  adjuntoTipo     String?
+  adjuntoNombre   String?
+  leido           Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  conversacion    Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+  emisor          Usuario      @relation("MensajeEmisor", fields: [emisorId], references: [id], onDelete: Cascade)
+
+  @@index([conversacionId, createdAt])
+}
+
+// =============================================
+// SUSCRIPCIONES Y PAGOS
+// =============================================
+
+enum PlanSuscripcion {
+  GRATUITO
+  PROFESIONAL
+  PREMIUM
+}
+
+enum EstadoSuscripcion {
+  ACTIVA
+  VENCIDA
+  CANCELADA
+  PENDIENTE_PAGO
+}
+
+model Suscripcion {
+  id              String   @id @default(cuid())
+  perfilId        String   @unique
+  perfil          PerfilProfesional @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+  plan            PlanSuscripcion @default(GRATUITO)
+  estado          EstadoSuscripcion @default(ACTIVA)
+  fechaInicio     DateTime @default(now())
+  fechaFin        DateTime?
+  precioMensual   Float?
+  mercadopagoId   String?
+  renovacionAuto  Boolean  @default(false)
+
+  pagos           Pago[]
+}
+
+model Pago {
+  id                  String   @id @default(cuid())
+  suscripcionId       String
+  suscripcion         Suscripcion @relation(fields: [suscripcionId], references: [id], onDelete: Cascade)
+  monto               Float
+  moneda              String   @default("ARS")
+  metodoPago          String?
+  estadoPago          String   @default("pendiente")
+  mercadopagoPagoId   String?
+  fechaPago           DateTime @default(now())
+}
+
+// =============================================
+// NOTIFICACIONES
+// =============================================
+
+enum TipoNotificacion {
+  NUEVO_MENSAJE
+  RESENA_RECIBIDA
+  PROFESIONAL_APROBADO
+  PROFESIONAL_RECHAZADO
+  SUSCRIPCION_VENCE
+  NUEVO_CONTACTO
+}
+
+model Notificacion {
+  id          String   @id @default(cuid())
+  usuarioId   String
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tipo        TipoNotificacion
+  titulo      String
+  mensaje     String
+  leida       Boolean  @default(false)
+  enlace      String?
+  createdAt   DateTime @default(now())
+}
