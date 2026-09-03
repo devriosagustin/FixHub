@@ -4,14 +4,14 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# ContrataYa — Estado del proyecto
+# fixhub — Estado del proyecto
 
 ## Objetivo
 Dejar funcionando el cobro de suscripciones en la web (Next.js + Prisma + PostgreSQL) vía MercadoPago SDK, y conectar el MCP de MercadoPago a la app de escritorio de opencode mediante OAuth.
 
 ## Datos importantes
-- App: ContrataYa (Next.js 16.2.10, React 19, NextAuth v5 beta, Socket.io, Prisma 6.19.3, SDK mercadopago 3.2.0).
-- Dev server: `tsx watch server.ts`, corre en `http://localhost:3000`, log en `dev-server.log` (lanzado con `Start-Process cmd /c npm run dev > dev-server.log 2>&1`).
+- App: fixhub (antes ContrataYa) — Next.js 16.2.10, React 19, NextAuth v5 beta, Socket.io, Prisma 6.19.3, SDK mercadopago 3.2.0.
+- Dev server: `tsx watch server.ts`, corre en `http://localhost:3000`, log en `dev-server.log`. Para relanzarlo en PS 5.1 usar `Start-Process -FilePath "cmd.exe" -ArgumentList '/k npm run dev > dev-server.log 2>&1'` (la forma `cmd /c "..."` da error de argumento posicional).
 - DB en Docker: contenedor `contrataya-pg` (postgres:16). env: POSTGRES_PASSWORD=postgres, DB=contrataya, puerto 5432. `.env` DATABASE_URL = `postgresql://postgres:postgres@localhost:5432/contrataya?schema=public`.
 - Shell es PowerShell 5.1: NO admite `&&`; usar `;`. `docker`/`psql` quotes se rompen con strings inline — usar heredocs `@"..."@ | docker exec -i`.
 - `opencode` no está en PATH; CLI en `C:\Users\riosa\AppData\Local\opencode\opencode-cli.exe`. App de escritorio en `C:\Users\riosa\AppData\Local\@opencode-aidesktop`.
@@ -36,6 +36,13 @@ Dejar funcionando el cobro de suscripciones en la web (Next.js + Prisma + Postgr
 - **IMPORTANTE**: los tokens OAuth NO se guardan en `~/.local/share/opencode/mcp-auth.json` (ahí queda solo `clientId/codeVerifier/oauthState/serverUrl`) sino en la DB de la app de escritorio (`opencode.db`). Verificar con `opencode mcp list` (debe decir "connected (OAuth)").
 - Nota de UX del OAuth: el proceso `opencode mcp auth` tiene un **timeout** (el primer intento falló con "OAuth callback timeout - authorization took too long"). Hay que completar la autorización en el navegador dentro de la ventana de vida del proceso; si expira, relanzar `opencode mcp auth mercadopago`. (2do intento OK: abrir la URL a mano en el navegador, conectar la cuenta de MP, volver al proceso.)
 - **Circuito completo de suscripción probado OK (E2E con lógica real)**: para perfil `rios.agustin.med@gmail.com` (suscripción PROFESIONAL `PENDIENTE_PAGO`): se creó preferencia con SDK (`external_reference`=id suscripción), se pagó con Mastercard test vía card_token + `/v1/payments` (pago `1351371353`, ARS 4999, `approved`), y `procesarPago` (lógica que usan webhook y `/api/suscripcion/confirmar`) activó la suscripción `PENDIENTE_PAGO`→`ACTIVA`, insertó `Pago`, set `fechaInicio`/`fechaFin` (+1 mes), `mercadopagoId`, perfil `destacado:true`/`fijado:false`. Script temporal borrado tras el test.
+- **Rebranding completo ContrataYa → fixhub** (commit inicial 7973d00): nombre visible (Navbar/Footer/Home/logos cuadrito "FH" + "fixhub"), emails/dominio fixhub.com (resend, contacto, register, forgot-password, metadata/robots/sitemap), carpetas Cloudinary `fixhub` (uploads, chat, galeria, certificaciones, documentos), seed admin@fixhub.com, package.json nombre "fixhub-app". `tsc --noEmit` exit 0. Repo git creado en `main`.
+- **Fase A — WhatsApp completada** (commit d70bfb5):
+  - Campo `whatsapp String?` agregado a `PerfilProfesional` en `prisma/schema.prisma` + `prisma db push` (schema en sync). Durante el regenerate falló EPERM por DLL lock (dev server corriendo): se detuvo el dev server, `npx prisma generate` OK, y se relanzó con `Start-Process cmd -ArgumentList '/k npm run dev > dev-server.log 2>&1'` (la forma `cmd /c "..."` da error de argumento posicional en PS 5.1).
+  - Helper nuevo `src/lib/whatsapp.ts`: `normalizarWhatsApp()` (E.164 sin `+`, asume código país 54 AR) y `urlWhatsApp(num, texto)` → `https://wa.me/<número>?text=...`. Verificado: `011 4444-5555`, `+54 11 4444 5555`, `1144445555` → `541144445555`; `5491144445555` se mantiene; vacío → null (no muestra botón).
+  - API `POST /api/profesionales` y `PUT /api/profesionales/[id]`: aceptan y guardan `whatsapp` (Zod opcional con regex en POST).
+  - Formularios `src/app/profesional/registro/page.tsx` y `src/app/profesional/perfil/page.tsx`: campo "WhatsApp" agregado (estado, carga, envío, input).
+  - `src/app/(dashboard)/perfil/[id]/ProfileClient.tsx`: botón "Llamar" (`tel:`) reemplazado por "Enviar WhatsApp" (`wa.me`) en el CTA y en el sidebar de contacto. Icono WhatsApp: SVG custom (componente `IconoWhatsApp`) porque lucide no lo tiene. Solo se muestra si el profesional cargó `whatsapp`. `tsc --noEmit` exit 0.
 
 ### Siguiente
 - Tras conectar el MCP, reiniciar la app de escritorio de opencode para exponer las tools del MCP en futuras sesiones.
@@ -52,12 +59,6 @@ Dejar funcionando el cobro de suscripciones en la web (Next.js + Prisma + Postgr
 - **Contactar al cliente/publicar mensaje**: profesional manda mensaje/presupuesto a los trabajos. Reutilizar `Conversacion`+`Mensaje` o crear candidatura.
 - Acceso por suscripción: solo profesionales suscritos ven/filtran/postulan (fase de pago).
 
-### WhatsApp en PerfilProfesional — CAMBIO
-- **Nuevo campo `whatsapp`** en `PerfilProfesional` (schema + formularios registro/edición + API profesional). DECISIÓN: apunta al WhatsApp del **profesional** (el número al que escribe el cliente visitante), no del cliente. Es un campo separado del `telefono` (permite número de WhatsApp distinto y validación de formato).
-- **Reemplazar botón "Llamar" por "Enviar WhatsApp"**: en `src/app/(dashboard)/perfil/[id]/ProfileClient.tsx` (CTA líneas ~189-196 con `tel:` y sidebar de contacto líneas ~362-365) → enlace `https://wa.me/<código país><número>` (icono WhatsApp: no hay en lucide → usar SVG custom o `MessageCircle`).
-- **Recomendación (confirmada por usuario)**: el `tel:` falla en web móvil (no tiene app de llamadas universalmente). El enlace `wa.me` funciona en cualquier navegador, abre WhatsApp con el número precargado y un mensaje predefinido. Quitar el botón de llamar del CTA y del sidebar y reemplazarlo por WhatsApp.
-- Implementación primero: WhatsApp, luego trabajos.
-
 ### Otros / pendientes
 - Notificaciones push (hoy solo browser Notification API en chat).
 - Sistema formal de presupuestos/cotizaciones.
@@ -68,6 +69,9 @@ Dejar funcionando el cobro de suscripciones en la web (Next.js + Prisma + Postgr
 - `src/lib/mercadopago.ts`: lógica compartida `procesarPago` que activa la suscripción tras pago aprobado; contenido `esMercadoPagoTest()`, `obtenerPago()`, `mpClient()`. Mapea `external_reference` = id de suscripción.
 - `src/app/api/webhooks/mercadopago/route.ts` y `src/app/api/suscripcion/confirmar/route.ts`: reciben notificación MP / confirman al volver del checkout; ambos usan `procesarPago`.
 - `src/lib/plans.ts`: define planes; PROFESIONAL (4999) y PREMIUM (9999) tienen `precio`; GRATUITO sin precio. `getPlanById`, `getLimite`, `tieneAcceso`.
+- `src/app/api/profesionales/route.ts` y `src/app/api/profesionales/[id]/route.ts`: APIs profesionales (POST acepta `whatsapp` opcional con regex; PUT actualiza `whatsapp`).
+- `src/lib/whatsapp.ts`: helper Fase A. `normalizarWhatsApp()` (E.164 sin `+`, asume 54 AR) y `urlWhatsApp(num, texto?)` → `https://wa.me/<número>` o null.
+- `src/app/(dashboard)/perfil/[id]/ProfileClient.tsx`: perfil público profesional; CTA + sidebar usan "Enviar WhatsApp" (`wa.me` desde `perfil.whatsapp`), componente `IconoWhatsApp` (SVG custom).
 - `opencode.json`: config MCP MercadoPago remoto con `oauth: {}` (sin header).
 - `.env`: credentials (DATABASE_URL, MERCADOPAGO_ACCESS_TOKEN/PUBLIC_KEY, NEXT_PUBLIC_APP_URL=http://localhost:3000, Google/Cloudinary).
 - `dev-server.log`: log de arranque del dev server en Windows (los requests de `next dev` no van necesariamente ahí).
