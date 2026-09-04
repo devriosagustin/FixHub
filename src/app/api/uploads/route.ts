@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { subirImagen } from "@/lib/cloudinary";
 
 // POST /api/uploads - Subir imagen a Cloudinary
 export async function POST(request: NextRequest) {
   try {
     // Verificar autenticación
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
@@ -36,17 +34,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const resultado = await subirImagen(file, carpeta);
+    const subida = await subirImagen(file, carpeta);
 
     return NextResponse.json({
-      url: resultado.url,
-      publicId: resultado.publicId,
+      url: subida.url,
+      publicId: subida.publicId,
     });
   } catch (error) {
-    console.error("Error subiendo archivo:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    return errorInterno(error, "subiendo archivo");
   }
 }

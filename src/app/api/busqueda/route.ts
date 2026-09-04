@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { errorInterno } from "@/lib/api-auth";
 
 // Fórmula de Haversine para calcular distancia entre dos puntos en km
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -205,7 +206,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error en búsqueda:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "en búsqueda");
   }
 }

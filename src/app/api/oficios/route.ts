@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { errorInterno } from "@/lib/api-auth";
 
 // GET /api/oficios - Obtener todos los oficios activos
 export async function GET() {
@@ -11,10 +12,6 @@ export async function GET() {
 
     return NextResponse.json(oficios);
   } catch (error) {
-    console.error("Error obteniendo oficios:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    return errorInterno(error, "obteniendo oficios");
   }
 }

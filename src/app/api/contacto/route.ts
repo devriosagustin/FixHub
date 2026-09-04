@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { enviarEmail, resendConfigurado } from "@/lib/resend";
 import { z } from "zod";
+import { errorInterno } from "@/lib/api-auth";
 
 const ContactoSchema = z.object({
   nombre: z.string().min(2, "El nombre es requerido").max(100),
@@ -64,7 +65,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ mensaje: "Mensaje enviado", enviado: true });
   } catch (err) {
-    console.error("Error en /api/contacto:", err);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(err, "en /api/contacto");
   }
 }
