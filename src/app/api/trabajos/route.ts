@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { tieneSuscripcionPagaActiva } from "@/lib/suscripcion";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 
 // Schema de validación para crear un trabajo
 const schemaCrearTrabajo = z.object({
@@ -24,18 +24,13 @@ const schemaCrearTrabajo = z.object({
 // POST /api/trabajos - Publicar un trabajo (cliente autenticado)
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
     // Solo clientes pueden publicar trabajos
-    if (session.user.rol !== "CLIENTE" && session.user.rol !== "ADMIN") {
-      return NextResponse.json(
-        { error: "Solo los clientes pueden publicar trabajos" },
-        { status: 403 }
-      );
-    }
+    const resultado = await requireAuth(
+      ["CLIENTE", "ADMIN"],
+      "Solo los clientes pueden publicar trabajos"
+    );
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const body = await request.json();
     const datos = schemaCrearTrabajo.parse(body);
@@ -64,26 +59,20 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    console.error("Error creando trabajo:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return errorInterno(error, "creando trabajo");
   }
 }
 
 // GET /api/trabajos - Listar trabajos abiertos (para profesionales suscritos)
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
     // Solo profesionales (o admin) ven el listado de trabajos
-    if (session.user.rol !== "PROFESIONAL" && session.user.rol !== "ADMIN") {
-      return NextResponse.json(
-        { error: "Solo los profesionales pueden ver trabajos" },
-        { status: 403 }
-      );
-    }
+    const resultado = await requireAuth(
+      ["PROFESIONAL", "ADMIN"],
+      "Solo los profesionales pueden ver trabajos"
+    );
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const { searchParams } = new URL(request.url);
     const oficioId = searchParams.get("oficioId") || undefined;
@@ -115,7 +104,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ trabajos, tieneAcceso });
   } catch (error) {
-    console.error("Error listando trabajos:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return errorInterno(error, "listando trabajos");
   }
 }
