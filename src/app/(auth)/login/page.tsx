@@ -83,8 +83,8 @@ function LoginForm() {
       <div className="w-full max-w-md">
         <div className="rounded-2xl border border-border bg-card p-8 shadow-lg">
           <div className="mb-6 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-navy font-bold text-white text-lg">
-              CY
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-orange font-bold text-white text-lg">
+              FH
             </div>
             <h1 className="mt-4 text-2xl font-bold text-navy">
               {modoRegistro ? "Crear cuenta" : "Bienvenido a fixhub"}

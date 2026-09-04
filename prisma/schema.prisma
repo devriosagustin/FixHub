@@ -1,5 +1,5 @@
 // =============================================
-// CONTRATAYA - Schema de Base de Datos
+// FIXHUB - Schema de Base de Datos
 // =============================================
 
 generator client {

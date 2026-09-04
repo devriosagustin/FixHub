@@ -3,7 +3,7 @@ version: '3.8'
 services:
   db:
     image: postgres:17-alpine
-    container_name: contrataya-db
+    container_name: fixhub-db
     environment:
       POSTGRES_USER: ${DB_USER:-contrataya}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
@@ -18,13 +18,13 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - contrataya-network
+      - fixhub-network
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: contrataya-app
+    container_name: fixhub-app
     ports:
       - "${PORT:-3000}:3000"
     environment:
@@ -48,12 +48,12 @@ services:
       db:
         condition: service_healthy
     networks:
-      - contrataya-network
+      - fixhub-network
     restart: unless-stopped
 
 volumes:
   db_data:
 
 networks:
-  contrataya-network:
+  fixhub-network:
     driver: bridge
