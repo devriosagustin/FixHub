@@ -12,10 +12,10 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { obtenerPago, procesarPago } from "@/lib/mercadopago";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 
 /** Busca pagos de una suscripción por su external_reference. */
 async function obtenerPagosPorReferencia(externalReference: string) {
@@ -41,10 +41,9 @@ async function obtenerPagosPorReferencia(externalReference: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const body = await request.json();
     const { suscripcionId, paymentId } = body;
@@ -105,7 +104,6 @@ export async function POST(request: NextRequest) {
       suscripcion: suscripcionFinal,
     });
   } catch (err) {
-    console.error("Error confirmando suscripción:", err);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(err, "confirmando suscripción");
   }
 }

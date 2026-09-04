@@ -17,8 +17,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/api-auth";
 import { getPlanById, type PlanId } from "@/lib/plans";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 
@@ -29,18 +29,12 @@ const client = new MercadoPagoConfig({
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
-    // Solo profesionales pueden suscribirse
-    if (session.user.rol !== "PROFESIONAL" && session.user.rol !== "ADMIN") {
-      return NextResponse.json(
-        { error: "Solo los profesionales pueden suscribirse" },
-        { status: 403 }
-      );
-    }
+    const resultado = await requireAuth(
+      ["PROFESIONAL", "ADMIN"],
+      "Solo los profesionales pueden suscribirse"
+    );
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const userId = session.user.id;
     const body = await request.json();

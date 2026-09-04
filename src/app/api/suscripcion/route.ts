@@ -7,16 +7,15 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getPlanById, type PlanId } from "@/lib/plans";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 
 export async function GET(_request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const userId = session.user.id;
 
@@ -105,11 +104,7 @@ export async function GET(_request: NextRequest) {
       plan: getPlanById(suscripcion.plan as PlanId),
     });
   } catch (err) {
-    console.error("Error al obtener suscripción:", err);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    return errorInterno(err, "al obtener suscripción");
   }
 }
 
@@ -125,18 +120,12 @@ export async function GET(_request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
-    // Solo profesionales pueden tener suscripciones
-    if (session.user.rol !== "PROFESIONAL" && session.user.rol !== "ADMIN") {
-      return NextResponse.json(
-        { error: "Solo los profesionales pueden suscribirse" },
-        { status: 403 }
-      );
-    }
+    const resultado = await requireAuth(
+      ["PROFESIONAL", "ADMIN"],
+      "Solo los profesionales pueden suscribirse"
+    );
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const userId = session.user.id;
     const body = await request.json();
@@ -207,10 +196,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ suscripcion: nueva, plan: planInfo }, { status: 201 });
   } catch (err) {
-    console.error("Error al crear suscripción:", err);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    return errorInterno(err, "al crear suscripción");
   }
 }

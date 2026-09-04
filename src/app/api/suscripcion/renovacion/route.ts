@@ -7,15 +7,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const body = await request.json();
     const { activar } = body;
@@ -59,7 +58,6 @@ export async function PATCH(request: NextRequest) {
       renovacionAuto: actualizada.renovacionAuto,
     });
   } catch (err) {
-    console.error("Error actualizando renovación:", err);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return errorInterno(err, "actualizando renovación");
   }
 }

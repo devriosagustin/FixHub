@@ -9,16 +9,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 
 export async function POST(_request: NextRequest) {
   try {
-    const session = await auth();
-    // Solo admins o el propio proceso pueden ejecutar esta verificación global
-    if (!session?.user || session.user.rol !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    const resultado = await requireAuth(["ADMIN"]);
+    if (!resultado.ok) return resultado.response;
 
     const ahora = new Date();
     const renovadas = [];
@@ -79,7 +76,6 @@ export async function POST(_request: NextRequest) {
 
     return NextResponse.json({ renovadas: renovadas.length, detalles: renovadas });
   } catch (err) {
-    console.error("Error verificando suscripciones vencidas:", err);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(err, "verificando suscripciones vencidas");
   }
 }
