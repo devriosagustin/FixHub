@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { tieneSuscripcionPagaActiva } from "@/lib/suscripcion";
@@ -15,17 +15,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
-    if (session.user.rol !== "PROFESIONAL") {
-      return NextResponse.json(
-        { error: "Solo los profesionales pueden postularse" },
-        { status: 403 }
-      );
-    }
+    const resultado = await requireAuth(
+      ["PROFESIONAL"],
+      "Solo los profesionales pueden postularse"
+    );
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const { id } = await params;
 
@@ -99,7 +94,6 @@ export async function POST(
         { status: 400 }
       );
     }
-    console.error("Error al postularse:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return errorInterno(error, "al postularse");
   }
 }

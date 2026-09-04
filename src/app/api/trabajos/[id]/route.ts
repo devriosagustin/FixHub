@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { tieneSuscripcionPagaActiva } from "@/lib/suscripcion";
 
@@ -9,10 +9,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const { id } = await params;
 
@@ -69,7 +68,6 @@ export async function GET(
     const { postulaciones, ...datosPublicos } = trabajo;
     return NextResponse.json({ trabajo: datosPublicos, esPropietario: false });
   } catch (error) {
-    console.error("Error obteniendo trabajo:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return errorInterno(error, "obteniendo trabajo");
   }
 }

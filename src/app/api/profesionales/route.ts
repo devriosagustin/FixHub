@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -22,10 +22,9 @@ const schemaRegistroProfesional = z.object({
 export async function POST(request: NextRequest) {
   try {
     // 1. Verificar autenticación
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     // 2. Verificar que sea CLIENTE (los profesionales se registran desde perfil cliente)
     const usuario = await prisma.usuario.findUnique({
@@ -121,11 +120,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error("Error creando perfil profesional:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    return errorInterno(error, "creando perfil profesional");
   }
 }
 
@@ -180,10 +175,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error listando profesionales:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    return errorInterno(error, "listando profesionales");
   }
 }
