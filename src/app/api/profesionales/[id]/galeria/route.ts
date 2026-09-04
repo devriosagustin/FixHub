@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { subirImagen, eliminarImagen } from "@/lib/cloudinary";
 
@@ -9,10 +9,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const { id } = await params;
 
@@ -63,8 +62,7 @@ export async function POST(
 
     return NextResponse.json({ fotos: fotosSubidas }, { status: 201 });
   } catch (error) {
-    console.error("Error subiendo galería:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "subiendo galería");
   }
 }
 
@@ -74,10 +72,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const { id } = await params;
     const { searchParams } = new URL(request.url);
@@ -119,7 +116,6 @@ export async function DELETE(
 
     return NextResponse.json({ mensaje: "Foto eliminada" });
   } catch (error) {
-    console.error("Error eliminando foto:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "eliminando foto");
   }
 }

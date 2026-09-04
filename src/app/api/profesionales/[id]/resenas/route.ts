@@ -13,7 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
@@ -21,18 +21,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
-    // Solo clientes pueden dejar reseñas
-    if (session.user.rol !== "CLIENTE") {
-      return NextResponse.json(
-        { error: "Solo los clientes pueden dejar reseñas" },
-        { status: 403 }
-      );
-    }
+    const resultado = await requireAuth(
+      ["CLIENTE"],
+      "Solo los clientes pueden dejar reseñas"
+    );
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const userId = session.user.id;
     const { id: perfilId } = await params;
@@ -164,8 +158,6 @@ export async function POST(
 
     return NextResponse.json({ resena }, { status: 201 });
   } catch (err) {
-    console.error("Error al crear reseña:", err);
-
     // Error de constraint unique (ya existe una reseña)
     if ((err as any).code === "P2002") {
       return NextResponse.json(
@@ -174,10 +166,7 @@ export async function POST(
       );
     }
 
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    return errorInterno(err, "al crear reseña");
   }
 }
 
@@ -249,10 +238,6 @@ export async function GET(
       },
     });
   } catch (err) {
-    console.error("Error al obtener reseñas:", err);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    return errorInterno(err, "al obtener reseñas");
   }
 }

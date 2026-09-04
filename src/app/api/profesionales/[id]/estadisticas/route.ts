@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/profesionales/[id]/estadisticas - Ver mis estadísticas (propietario)
@@ -8,10 +8,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const { id } = await params;
 
@@ -69,7 +68,6 @@ export async function GET(
       suscripcion,
     });
   } catch (error) {
-    console.error("Error obteniendo estadísticas:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "obteniendo estadísticas");
   }
 }

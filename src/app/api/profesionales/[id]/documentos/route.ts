@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { subirImagen } from "@/lib/cloudinary";
 
@@ -9,10 +9,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const { id } = await params;
 
@@ -76,7 +75,6 @@ export async function POST(
 
     return NextResponse.json({ mensaje: "Documentos DNI subidos correctamente" }, { status: 201 });
   } catch (error) {
-    console.error("Error subiendo DNI:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "subiendo DNI");
   }
 }

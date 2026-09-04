@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/profesionales/[id] - Ver perfil público de un profesional
@@ -60,8 +60,7 @@ export async function GET(
       totalResenas: perfil.resenas.length,
     });
   } catch (error) {
-    console.error("Error obteniendo perfil:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "obteniendo perfil");
   }
 }
 
@@ -71,10 +70,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const { id } = await params;
 
@@ -139,7 +137,6 @@ export async function PUT(
 
     return NextResponse.json({ perfil: actualizado });
   } catch (error) {
-    console.error("Error actualizando perfil:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "actualizando perfil");
   }
 }

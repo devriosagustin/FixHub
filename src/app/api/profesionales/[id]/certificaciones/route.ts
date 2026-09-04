@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { subirImagen, eliminarImagen } from "@/lib/cloudinary";
 import { getPlanById } from "@/lib/plans";
@@ -10,10 +10,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const { id } = await params;
 
@@ -56,21 +55,20 @@ export async function POST(
       return NextResponse.json({ error: "Tipo de archivo no permitido (JPG, PNG, WebP, PDF)" }, { status: 400 });
     }
 
-    const resultado = await subirImagen(file, `fixhub/certificaciones/${id}`);
+    const subida = await subirImagen(file, `fixhub/certificaciones/${id}`);
 
     const certificacion = await prisma.certificacion.create({
       data: {
         perfilId: id,
         nombre,
-        url: resultado.url,
+        url: subida.url,
         tipo: file.type === "application/pdf" ? "pdf" : "imagen",
       },
     });
 
     return NextResponse.json({ certificacion }, { status: 201 });
   } catch (error) {
-    console.error("Error subiendo certificación:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "subiendo certificación");
   }
 }
 
@@ -80,10 +78,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const { id } = await params;
     const { searchParams } = new URL(request.url);
@@ -120,7 +117,6 @@ export async function DELETE(
 
     return NextResponse.json({ mensaje: "Certificación eliminada" });
   } catch (error) {
-    console.error("Error eliminando certificación:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "eliminando certificación");
   }
 }
