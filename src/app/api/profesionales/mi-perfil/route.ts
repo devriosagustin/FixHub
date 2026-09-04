@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(_request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const perfil = await prisma.perfilProfesional.findUnique({
       where: { userId: session.user.id },
@@ -31,7 +30,6 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json(perfil);
   } catch (error) {
-    console.error("Error obteniendo mi perfil:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "obteniendo mi perfil");
   }
 }

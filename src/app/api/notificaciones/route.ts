@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/notificaciones - Listar mis notificaciones
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const url = new URL(request.url);
     const limit = Math.min(parseInt(url.searchParams.get("limit") || "20"), 50);
@@ -29,18 +28,16 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ notificaciones, total, noLeidas });
   } catch (error) {
-    console.error("Error obteniendo notificaciones:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "obteniendo notificaciones");
   }
 }
 
 // PATCH /api/notificaciones - Marcar como leídas
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const body = await request.json();
     const { id } = body;
@@ -62,7 +59,6 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Error actualizando notificaciones:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "actualizando notificaciones");
   }
 }

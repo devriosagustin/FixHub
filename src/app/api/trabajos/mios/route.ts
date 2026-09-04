@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/trabajos/mios - Trabajos publicados por el cliente autenticado
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const trabajos = await prisma.trabajo.findMany({
       where: { clienteId: session.user.id },
@@ -21,7 +20,6 @@ export async function GET() {
 
     return NextResponse.json({ trabajos });
   } catch (error) {
-    console.error("Error listando mis trabajos:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return errorInterno(error, "listando mis trabajos");
   }
 }

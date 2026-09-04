@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
@@ -16,10 +16,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const userId = session.user.id;
     const { id: conversacionId } = await params;
@@ -49,7 +48,7 @@ export async function PATCH(
     }
 
     // Marcar como leídos todos los mensajes que YO NO envié y que están sin leer
-    const resultado = await prisma.mensaje.updateMany({
+    const actualizacion = await prisma.mensaje.updateMany({
       where: {
         conversacionId,
         emisorId: { not: userId },
@@ -60,13 +59,9 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      marcados: resultado.count,
+      marcados: actualizacion.count,
     });
   } catch (err) {
-    console.error("Error al marcar mensajes como leídos:", err);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    return errorInterno(err, "al marcar mensajes como leídos");
   }
 }

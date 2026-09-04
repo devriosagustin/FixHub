@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { subirImagen } from "@/lib/cloudinary";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -20,10 +20,9 @@ const TIPOS_PERMITIDOS = new Set([
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
@@ -46,12 +45,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const resultado = await subirImagen(file, `fixhub/chat/${session.user.id}`);
+    const subida = await subirImagen(file, `fixhub/chat/${session.user.id}`);
 
     return NextResponse.json(
       {
         adjunto: {
-          url: resultado.url,
+          url: subida.url,
           tipo: file.type,
           nombre: file.name || "adjunto",
         },
@@ -59,7 +58,6 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Error subiendo adjunto de chat:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "subiendo adjunto de chat");
   }
 }

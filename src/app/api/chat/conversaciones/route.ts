@@ -9,16 +9,15 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(_request: NextRequest) {
   try {
     // Verificar que el usuario esté autenticado
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const userId = session.user.id;
 
@@ -102,11 +101,7 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({ conversaciones: conversacionesConNoLeidos });
   } catch (err) {
-    console.error("Error al listar conversaciones:", err);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    return errorInterno(err, "al listar conversaciones");
   }
 }
 
@@ -121,10 +116,9 @@ export async function GET(_request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const resultado = await requireAuth();
+    if (!resultado.ok) return resultado.response;
+    const { session } = resultado;
 
     const userId = session.user.id;
     const body = await request.json();
@@ -226,10 +220,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ conversacion: nuevaConversacion }, { status: 201 });
   } catch (err) {
-    console.error("Error al crear conversación:", err);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    return errorInterno(err, "al crear conversación");
   }
 }
