@@ -355,6 +355,7 @@ model Trabajo {
   fechaLimite     DateTime?
   estado          EstadoTrabajo @default(ABIERTO)
   whatsappContacto String?
+  fotos           String[] @default([])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

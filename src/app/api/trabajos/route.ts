@@ -19,6 +19,7 @@ const schemaCrearTrabajo = z.object({
     .string()
     .regex(/^\+?[0-9\s()\-]+$/, "El WhatsApp de contacto no es válido")
     .optional(),
+  fotos: z.array(z.string().url()).max(5, "Podés subir hasta 5 fotos por trabajo").optional(),
 });
 
 // POST /api/trabajos - Publicar un trabajo (cliente autenticado)
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
         presupuestoMax: datos.presupuestoMax,
         fechaLimite: datos.fechaLimite ? new Date(datos.fechaLimite) : null,
         whatsappContacto: datos.whatsappContacto,
+        fotos: datos.fotos ?? [],
       },
     });
 

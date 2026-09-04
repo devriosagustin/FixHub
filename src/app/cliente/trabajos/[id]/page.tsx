@@ -29,6 +29,7 @@ interface TrabajoDetalle {
   presupuestoMax: number | null;
   fechaLimite: string | null;
   estado: "ABIERTO" | "EN_PROCESO" | "CERRADO";
+  fotos: string[];
   createdAt: string;
   oficio: { nombre: string; icono: string };
   postulaciones: Postulacion[];
@@ -144,6 +145,25 @@ export default function DetalleTrabajoClientePage() {
             </span>
           )}
         </div>
+
+        {trabajo.fotos.length > 0 && (
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-text-light">Fotos</p>
+            <div className="flex flex-wrap gap-3">
+              {trabajo.fotos.map((url) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block h-24 w-24 overflow-hidden rounded-lg border border-border"
+                >
+                  <img src={url} alt="" className="h-full w-full object-cover transition-transform hover:scale-105" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Postulaciones */}

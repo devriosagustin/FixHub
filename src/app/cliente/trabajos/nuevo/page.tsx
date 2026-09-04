@@ -31,12 +31,54 @@ export default function PublicarTrabajoPage() {
   const [error, setError] = useState("");
   const [exito, setExito] = useState(false);
 
+  const [fotos, setFotos] = useState<string[]>([]);
+  const [subiendoFotos, setSubiendoFotos] = useState(false);
+  const MAX_FOTOS = 5;
+
   useEffect(() => {
     fetch("/api/oficios")
       .then((res) => res.json())
       .then((data) => setOficios(data))
       .catch(() => setError("Error cargando oficios"));
   }, []);
+
+  const handleFotosSeleccionadas = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+
+    if (fotos.length + files.length > MAX_FOTOS) {
+      setError(`Podés subir hasta ${MAX_FOTOS} fotos por trabajo`);
+      return;
+    }
+
+    setError("");
+    setSubiendoFotos(true);
+    try {
+      const formData = new FormData();
+      files.forEach((file) => formData.append("files", file));
+
+      const res = await fetch("/api/trabajos/fotos", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Error al subir las fotos");
+      }
+
+      setFotos((prev) => [...prev, ...data.fotos]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setSubiendoFotos(false);
+    }
+  };
+
+  const handleQuitarFoto = (url: string) => {
+    setFotos((prev) => prev.filter((f) => f !== url));
+  };
 
   if (status === "loading") {
     return (
@@ -73,6 +115,7 @@ export default function PublicarTrabajoPage() {
         presupuestoMax: presupuestoMax ? parseFloat(presupuestoMax) : undefined,
         fechaLimite: fechaLimite ? new Date(fechaLimite).toISOString() : null,
         whatsappContacto: whatsappContacto || undefined,
+        fotos: fotos.length ? fotos : undefined,
       };
 
       const res = await fetch("/api/trabajos", {
@@ -126,6 +169,7 @@ export default function PublicarTrabajoPage() {
                 setPresupuestoMax("");
                 setFechaLimite("");
                 setWhatsappContacto("");
+                setFotos([]);
               }}
               className="rounded-lg border border-orange px-6 py-3 font-semibold text-orange transition-colors hover:bg-orange/5"
             >
@@ -237,6 +281,46 @@ export default function PublicarTrabajoPage() {
                 />
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6">
+          <h2 className="mb-4 text-lg font-semibold text-navy">Fotos (opcional)</h2>
+          <p className="mb-4 text-sm text-text-light">
+            Subí hasta {MAX_FOTOS} fotos para que los profesionales entiendan mejor el trabajo.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {fotos.map((url) => (
+              <div key={url} className="group relative h-24 w-24 overflow-hidden rounded-lg border border-border">
+                <img src={url} alt="" className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => handleQuitarFoto(url)}
+                  className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-navy/80 text-xs font-bold text-white transition-opacity hover:bg-error"
+                  aria-label="Quitar foto"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {fotos.length < MAX_FOTOS && (
+              <label
+                className={`flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-xs text-text-light transition-colors hover:border-orange hover:text-orange ${
+                  subiendoFotos ? "pointer-events-none opacity-50" : ""
+                }`}
+              >
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  multiple
+                  onChange={handleFotosSeleccionadas}
+                  disabled={subiendoFotos}
+                  className="hidden"
+                />
+                <span className="text-2xl leading-none">+</span>
+                {subiendoFotos ? "Subiendo..." : "Agregar"}
+              </label>
+            )}
           </div>
         </section>
 
