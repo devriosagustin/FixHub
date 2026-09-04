@@ -9,7 +9,7 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getPlanById, type PlanId } from "@/lib/plans";
-import { MercadoPagoConfig, Payment } from "mercadopago";
+import { MercadoPagoConfig, Payment, PreApproval, Invoice } from "mercadopago";
 
 export const mpClient = () =>
   new MercadoPagoConfig({
@@ -93,6 +93,228 @@ export function validarFirmaWebhook(params: {
 export async function obtenerPago(paymentId: string) {
   const paymentClient = new Payment(mpClient());
   return await paymentClient.get({ id: paymentId as unknown as number });
+}
+
+/**
+ * Consulta una suscripción recurrente (preapproval) en MercadoPago por ID.
+ */
+export async function obtenerPreapproval(preapprovalId: string) {
+  return await new PreApproval(mpClient()).get({ id: preapprovalId });
+}
+
+/**
+ * Consulta un cobro recurrente (authorized payment / invoice) por ID.
+ */
+export async function obtenerInvoice(invoiceId: string) {
+  return await new Invoice(mpClient()).get({ id: invoiceId });
+}
+
+/**
+ * Cancela una suscripción recurrente (preapproval) en MercadoPago.
+ * No hay forma de "pausar y reanudar" de forma confiable sin que el
+ * usuario vuelva a autorizar el cobro, así que desactivar la renovación
+ * automática cancela la autorización: para reactivarla hace falta un
+ * nuevo checkout.
+ */
+export async function cancelarPreapproval(preapprovalId: string) {
+  return await new PreApproval(mpClient()).update({
+    id: preapprovalId,
+    body: { status: "cancelled" },
+  });
+}
+
+/**
+ * Procesa una notificación de cambio de estado de una suscripción
+ * recurrente (preapproval) de MercadoPago: creación, autorización,
+ * pausa o cancelación. Se usa tanto desde el webhook como desde
+ * /api/suscripcion/confirmar (retorno del checkout).
+ *
+ * A diferencia de un pago único, acá "activar" la suscripción significa
+ * que el pagador autorizó el cobro recurrente (el primer cobro real
+ * ocurre recién ~1 hora después, vía subscription_authorized_payment).
+ */
+export async function procesarCambioPreapproval(preapproval: {
+  id?: string;
+  external_reference?: string;
+  status?: string;
+}): Promise<{ ok: boolean; suscripcionId?: string }> {
+  const suscripcionId = preapproval.external_reference;
+  if (!suscripcionId) {
+    console.log("[MercadoPago] preapproval sin external_reference");
+    return { ok: false };
+  }
+
+  const suscripcion = await prisma.suscripcion.findUnique({
+    where: { id: suscripcionId },
+  });
+
+  if (!suscripcion) {
+    console.log("[MercadoPago] Suscripción no encontrada (preapproval):", suscripcionId);
+    return { ok: false };
+  }
+
+  const datosBase = preapproval.id
+    ? { mercadopagoPreapprovalId: preapproval.id }
+    : {};
+
+  switch (preapproval.status) {
+    case "authorized": {
+      console.log("[MercadoPago] Preapproval autorizado, activando suscripción");
+      const fechaFin = new Date();
+      fechaFin.setMonth(fechaFin.getMonth() + 1);
+
+      await prisma.suscripcion.update({
+        where: { id: suscripcion.id },
+        data: {
+          ...datosBase,
+          estado: "ACTIVA",
+          renovacionAuto: true,
+          fechaInicio: new Date(),
+          fechaFin,
+        },
+      });
+
+      const planInfo = getPlanById(suscripcion.plan as PlanId);
+      await prisma.perfilProfesional.update({
+        where: { id: suscripcion.perfilId },
+        data: {
+          destacado: planInfo.limites.destacado,
+          fijado: planInfo.limites.fijado,
+        },
+      });
+      break;
+    }
+
+    case "paused":
+      console.log("[MercadoPago] Preapproval pausado");
+      await prisma.suscripcion.update({
+        where: { id: suscripcion.id },
+        data: { ...datosBase, renovacionAuto: false },
+      });
+      break;
+
+    case "cancelled":
+      console.log("[MercadoPago] Preapproval cancelado");
+      await prisma.suscripcion.update({
+        where: { id: suscripcion.id },
+        data: { ...datosBase, renovacionAuto: false },
+      });
+      break;
+
+    case "pending":
+      // Todavía no completó la autorización; no hay nada que activar.
+      if (preapproval.id) {
+        await prisma.suscripcion.update({
+          where: { id: suscripcion.id },
+          data: datosBase,
+        });
+      }
+      break;
+
+    default:
+      console.log("[MercadoPago] Estado de preapproval no manejado:", preapproval.status);
+  }
+
+  return { ok: true, suscripcionId: suscripcion.id };
+}
+
+/**
+ * Procesa un cobro recurrente (authorized payment / invoice) generado por
+ * una suscripción de MercadoPago: si el cobro fue aprobado, extiende la
+ * suscripción un mes más y registra el pago (evitando duplicados).
+ */
+export async function procesarPagoRecurrente(invoice: {
+  id?: string;
+  external_reference?: string;
+  preapproval_id?: string;
+  transaction_amount?: number | null;
+  currency_id?: string | null;
+  date_created?: string | null;
+  payment?: { id?: string | number; status?: string } | null;
+}): Promise<{ ok: boolean; suscripcionId?: string }> {
+  const incluirPerfil = { perfil: { select: { userId: true } } } as const;
+
+  let suscripcion = invoice.external_reference
+    ? await prisma.suscripcion.findUnique({
+        where: { id: invoice.external_reference },
+        include: incluirPerfil,
+      })
+    : null;
+
+  if (!suscripcion && invoice.preapproval_id) {
+    suscripcion = await prisma.suscripcion.findFirst({
+      where: { mercadopagoPreapprovalId: invoice.preapproval_id },
+      include: incluirPerfil,
+    });
+  }
+
+  if (!suscripcion) {
+    console.log(
+      "[MercadoPago] Suscripción no encontrada para el cobro recurrente:",
+      invoice.external_reference || invoice.preapproval_id
+    );
+    return { ok: false };
+  }
+
+  const pagoId = String(invoice.payment?.id ?? invoice.id ?? "");
+  const estadoPago = invoice.payment?.status || "unknown";
+
+  if (pagoId) {
+    const pagoExistente = await prisma.pago.findFirst({
+      where: { mercadopagoPagoId: pagoId },
+    });
+
+    if (!pagoExistente) {
+      await prisma.pago.create({
+        data: {
+          suscripcionId: suscripcion.id,
+          monto: invoice.transaction_amount || suscripcion.precioMensual || 0,
+          moneda: invoice.currency_id || "ARS",
+          estadoPago,
+          mercadopagoPagoId: pagoId,
+          fechaPago: invoice.date_created ? new Date(invoice.date_created) : new Date(),
+        },
+      });
+    }
+  }
+
+  if (estadoPago === "approved") {
+    console.log("[MercadoPago] Cobro recurrente aprobado, renovando suscripción");
+    const nuevaFechaFin = new Date();
+    nuevaFechaFin.setMonth(nuevaFechaFin.getMonth() + 1);
+
+    await prisma.suscripcion.update({
+      where: { id: suscripcion.id },
+      data: {
+        estado: "ACTIVA",
+        fechaInicio: new Date(),
+        fechaFin: nuevaFechaFin,
+      },
+    });
+
+    const planInfo = getPlanById(suscripcion.plan as PlanId);
+    await prisma.perfilProfesional.update({
+      where: { id: suscripcion.perfilId },
+      data: {
+        destacado: planInfo.limites.destacado,
+        fijado: planInfo.limites.fijado,
+      },
+    });
+
+    await prisma.notificacion.create({
+      data: {
+        usuarioId: suscripcion.perfil.userId,
+        tipo: "SUSCRIPCION_VENCE",
+        titulo: "Tu suscripción se renovó",
+        mensaje: `Tu plan ${suscripcion.plan} se renovó automáticamente hasta el ${nuevaFechaFin.toLocaleDateString("es-AR")}.`,
+        enlace: "/planes",
+      },
+    });
+  } else {
+    console.log("[MercadoPago] Cobro recurrente no aprobado, estado:", estadoPago);
+  }
+
+  return { ok: true, suscripcionId: suscripcion.id };
 }
 
 /**

@@ -283,6 +283,7 @@ model Suscripcion {
   fechaFin        DateTime?
   precioMensual   Float?
   mercadopagoId   String?
+  mercadopagoPreapprovalId String?
   renovacionAuto  Boolean  @default(false)
 
   pagos           Pago[]

@@ -1,12 +1,12 @@
 /**
- * Página de éxito después del pago en MercadoPago
+ * Página de éxito después de autorizar el cobro recurrente en MercadoPago
  *
- * MercadoPago redirige aquí con los parámetros:
- * - payment_id / collection_id
- * - external_reference (id de nuestra suscripción)
- * - status / collection_status
+ * Nosotros mismos armamos el back_url con `suscripcionId` en el checkout
+ * (ver /api/suscripcion/checkout), así no dependemos de qué query params
+ * agregue MercadoPago al volver. Para el checkout legado de pago único
+ * también soportamos `external_reference` / `payment_id` como fallback.
  *
- * Al cargar, confirma el pago contra la API de MercadoPago
+ * Al cargar, confirma el estado real contra la API de MercadoPago
  * (/api/suscripcion/confirmar) para activar la suscripción, ya que
  * en local el webhook no siempre llega.
  */
@@ -22,7 +22,7 @@ function ExitoContent() {
   const searchParams = useSearchParams();
   const status = searchParams.get("status") || searchParams.get("collection_status");
   const paymentId = searchParams.get("payment_id") || searchParams.get("collection_id");
-  const externalReference = searchParams.get("external_reference");
+  const suscripcionId = searchParams.get("suscripcionId") || searchParams.get("external_reference");
 
   const [estado, setEstado] = useState<"cargando" | "activada" | "pendiente" | "error">(
     "cargando"
@@ -30,7 +30,7 @@ function ExitoContent() {
   const [detalle, setDetalle] = useState("");
 
   useEffect(() => {
-    if (!externalReference) {
+    if (!suscripcionId) {
       setEstado("pendiente");
       setDetalle("No se pudo identificar la suscripción. El webhook la activará automáticamente.");
       return;
@@ -42,7 +42,7 @@ function ExitoContent() {
         const res = await fetch("/api/suscripcion/confirmar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ suscripcionId: externalReference, paymentId }),
+          body: JSON.stringify({ suscripcionId, paymentId }),
         });
         const data = await res.json();
         if (cancelado) return;
@@ -67,7 +67,7 @@ function ExitoContent() {
     return () => {
       cancelado = true;
     };
-  }, [externalReference, paymentId]);
+  }, [suscripcionId, paymentId]);
 
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center p-4">

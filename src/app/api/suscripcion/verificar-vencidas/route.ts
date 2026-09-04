@@ -20,13 +20,19 @@ export async function POST(_request: NextRequest) {
     const ahora = new Date();
     const renovadas = [];
 
-    // Buscar suscripciones ACTIVAS vencidas con renovación automática
+    // Buscar suscripciones ACTIVAS vencidas con renovación automática.
+    // Se excluyen las que tienen un preapproval de MercadoPago asociado:
+    // esas ya se renuevan solas vía el webhook real (subscription_authorized_payment)
+    // y "inventarles" una extensión acá pisaría/duplicaría lo que MercadoPago
+    // ya está manejando. Este barrido queda solo para el caso legado sin
+    // preapproval (renovacionAuto como flag manual, sin cobro real detrás).
     const suscripciones = await prisma.suscripcion.findMany({
       where: {
         estado: "ACTIVA",
         renovacionAuto: true,
         fechaFin: { lt: ahora },
         plan: { not: "GRATUITO" },
+        mercadopagoPreapprovalId: null,
       },
       include: { perfil: true },
     });

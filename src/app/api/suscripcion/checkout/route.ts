@@ -1,18 +1,20 @@
 /**
  * API Route: POST /api/suscripcion/checkout
- * 
- * Crea una preferencia de pago en MercadoPago y retorna
- * la URL de checkout para que el usuario pague.
- * 
+ *
+ * Crea una suscripción recurrente (preapproval) en MercadoPago y retorna
+ * la URL de checkout para que el usuario autorice el cobro automático.
+ *
  * Flujo:
  * 1. Profesional elige un plan de pago
  * 2. Se crea una suscripción PENDIENTE_PAGO en nuestra BD
- * 3. Se crea una preferencia en MercadoPago
- * 4. Se retorna la URL de checkout (init_point)
- * 5. El usuario paga en MercadoPago
+ * 3. Se crea un preapproval (suscripción recurrente) en MercadoPago
+ * 4. Se retorna la URL de checkout (init_point) para autorizar el cobro
+ * 5. El usuario autoriza el cobro recurrente en MercadoPago
  * 6. MercadoPago redirige de vuelta a /suscripcion/exito
- * 7. MercadoPago envía un webhook a /api/webhooks/mercadopago
- * 
+ * 7. MercadoPago envía webhooks (subscription_preapproval al autorizar,
+ *    subscription_authorized_payment en cada cobro mensual) a
+ *    /api/webhooks/mercadopago
+ *
  * Body: { plan: "PROFESIONAL" | "PREMIUM" }
  */
 
@@ -20,12 +22,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { getPlanById, type PlanId } from "@/lib/plans";
-import { MercadoPagoConfig, Preference } from "mercadopago";
-
-// Cliente de MercadoPago
-const client = new MercadoPagoConfig({
-  accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN!,
-});
+import { mpClient, esMercadoPagoTest } from "@/lib/mercadopago";
+import { PreApproval } from "mercadopago";
 
 export async function POST(request: NextRequest) {
   try {
@@ -94,57 +92,46 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Crear preferencia de MercadoPago
-    const preference = new Preference(client);
-
-    // Detectar si estamos en modo de pruebas (TEST) o producción (APP_USR)
-    const esModoTest = (process.env.MERCADOPAGO_ACCESS_TOKEN || "").startsWith("TEST-");
-    const backUrls = {
-      success: `${process.env.NEXT_PUBLIC_APP_URL}/suscripcion/exito`,
-      failure: `${process.env.NEXT_PUBLIC_APP_URL}/suscripcion/fallo`,
-      pending: `${process.env.NEXT_PUBLIC_APP_URL}/suscripcion/pendiente`,
-    };
+    // Crear la suscripción recurrente (preapproval) en MercadoPago
+    const preapproval = new PreApproval(mpClient());
 
     const esLocal = (process.env.NEXT_PUBLIC_APP_URL || "").includes("localhost");
+    // Igual que con Preference: en localhost MercadoPago rechaza back_url HTTP.
+    const backUrl = `${process.env.NEXT_PUBLIC_APP_URL}/suscripcion/exito?suscripcionId=${suscripcion.id}`;
 
-    const result = await preference.create({
+    const result = await preapproval.create({
       body: {
-        items: [
-          {
-            id: `suscripcion-${plan}-${perfil.id}`,
-            title: `Suscripción fixhub - Plan ${planInfo.nombre}`,
-            quantity: 1,
-            unit_price: planInfo.precio!,
-            currency_id: "ARS",
-          },
-        ],
-        payer: {
-          name: session.user.name || undefined,
-          email: session.user.email || undefined,
-        },
+        reason: `Suscripción fixhub - Plan ${planInfo.nombre}`,
         external_reference: suscripcion.id,
-        // En localhost MercadoPago rechaza back_urls HTTP, así que omitimos
-        // ambos (back_urls y auto_return) en local. `auto_return` solo acepta
-        // "all" | "approved" y exige back_url.success HTTPS, por lo que se
-        // omite para permitir pruebas locales.
-        ...(!esLocal && {
-          back_urls: backUrls,
-          auto_return: "approved" as const,
-        }),
-        notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/mercadopago`,
+        payer_email: session.user.email || undefined,
+        ...(!esLocal && { back_url: backUrl }),
+        auto_recurring: {
+          frequency: 1,
+          frequency_type: "months",
+          transaction_amount: planInfo.precio!,
+          currency_id: "ARS",
+        },
       },
     });
+
+    // Guardar el id del preapproval para poder reconciliar el webhook y
+    // /api/suscripcion/confirmar, y para poder cancelarlo después.
+    if (result.id) {
+      await prisma.suscripcion.update({
+        where: { id: suscripcion.id },
+        data: { mercadopagoPreapprovalId: result.id },
+      });
+    }
 
     // En modo TEST hay que redirigir al sandbox_init_point (checkout de pruebas),
     // en producción al init_point real. Usar el equivocado causa errores de
     // "una de las partes es de prueba" y fallos con las tarjetas de prueba.
-    const redirectUrl = esModoTest
-      ? result.sandbox_init_point
-      : result.init_point;
+    const sandboxInitPoint = (result as { sandbox_init_point?: string }).sandbox_init_point;
+    const redirectUrl = esMercadoPagoTest() ? sandboxInitPoint : result.init_point;
 
     return NextResponse.json({
       init_point: result.init_point,
-      sandbox_init_point: result.sandbox_init_point,
+      sandbox_init_point: sandboxInitPoint,
       checkout_url: redirectUrl,
       suscripcionId: suscripcion.id,
     });
