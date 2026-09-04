@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { errorInterno } from "@/lib/api-auth";
 
 const schema = z.object({
   token: z.string().min(10, "Token inválido"),
@@ -62,7 +63,6 @@ export async function POST(request: NextRequest) {
       mensaje: "Contraseña actualizada correctamente. Ya podés iniciar sesión.",
     });
   } catch (err) {
-    console.error("Error en reset-password:", err);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(err, "en reset-password");
   }
 }

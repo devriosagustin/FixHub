@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { enviarEmail } from "@/lib/resend";
+import { errorInterno } from "@/lib/api-auth";
 
 const schemaRegistro = z.object({
   nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
@@ -72,10 +73,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    console.error("Error en registro:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    return errorInterno(error, "en registro");
   }
 }

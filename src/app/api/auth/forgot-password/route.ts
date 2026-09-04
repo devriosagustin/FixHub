@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { enviarEmail } from "@/lib/resend";
 import crypto from "crypto";
 import { z } from "zod";
+import { errorInterno } from "@/lib/api-auth";
 
 const schema = z.object({
   email: z.string().email("Email inválido"),
@@ -78,7 +79,6 @@ export async function POST(request: NextRequest) {
         "Si el email está registrado, recibirás un enlace para restablecer tu contraseña.",
     });
   } catch (err) {
-    console.error("Error en forgot-password:", err);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(err, "en forgot-password");
   }
 }
