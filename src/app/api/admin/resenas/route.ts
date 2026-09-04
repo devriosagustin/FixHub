@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -9,10 +9,8 @@ import { prisma } from "@/lib/prisma";
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user || session.user.rol !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    const resultado = await requireAuth(["ADMIN"]);
+    if (!resultado.ok) return resultado.response;
 
     const body = await request.json();
     const { id, aprobar, motivoRechazo } = body;
@@ -43,18 +41,15 @@ export async function PATCH(request: NextRequest) {
       resena: actualizada,
     });
   } catch (error) {
-    console.error("Error admin moderando reseña:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "admin moderando reseña");
   }
 }
 
 // GET /api/admin/resenas - Listar todas las reseñas (admin)
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user || session.user.rol !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    const resultado = await requireAuth(["ADMIN"]);
+    if (!resultado.ok) return resultado.response;
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
@@ -82,18 +77,15 @@ export async function GET(request: NextRequest) {
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
-    console.error("Error admin listando reseñas:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "admin listando reseñas");
   }
 }
 
 // DELETE /api/admin/resenas - Eliminar una reseña (admin)
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user || session.user.rol !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    const resultado = await requireAuth(["ADMIN"]);
+    if (!resultado.ok) return resultado.response;
 
     const { searchParams } = new URL(request.url);
     const resenaId = searchParams.get("id");
@@ -111,7 +103,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ mensaje: "Reseña eliminada exitosamente" });
   } catch (error) {
-    console.error("Error admin eliminando reseña:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "admin eliminando reseña");
   }
 }

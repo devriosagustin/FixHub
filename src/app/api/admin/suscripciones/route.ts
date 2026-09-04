@@ -4,15 +4,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user || session.user.rol !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    const resultado = await requireAuth(["ADMIN"]);
+    if (!resultado.ok) return resultado.response;
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
@@ -53,7 +51,6 @@ export async function GET(request: NextRequest) {
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (err) {
-    console.error("Error admin listando suscripciones:", err);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(err, "admin listando suscripciones");
   }
 }

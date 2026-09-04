@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -14,10 +14,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user || session.user.rol !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    const resultado = await requireAuth(["ADMIN"]);
+    if (!resultado.ok) return resultado.response;
 
     const { id } = await params;
     const body = await request.json();
@@ -94,7 +92,6 @@ export async function PUT(
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Datos inválidos", detalles: error.issues }, { status: 400 });
     }
-    console.error("Error admin actualizando profesional:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "admin actualizando profesional");
   }
 }

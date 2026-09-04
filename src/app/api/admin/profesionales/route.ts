@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/admin/profesionales - Listar todos los profesionales (admin)
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user || session.user.rol !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    const resultado = await requireAuth(["ADMIN"]);
+    if (!resultado.ok) return resultado.response;
 
     const { searchParams } = new URL(request.url);
     const estado = searchParams.get("estado");
@@ -39,7 +37,6 @@ export async function GET(request: NextRequest) {
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
-    console.error("Error admin listando profesionales:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "admin listando profesionales");
   }
 }

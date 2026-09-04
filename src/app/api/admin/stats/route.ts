@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/admin/stats - Estadísticas generales del admin + actividad reciente
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user || session.user.rol !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    const resultado = await requireAuth(["ADMIN"]);
+    if (!resultado.ok) return resultado.response;
 
     const [
       totalProfesionales,
@@ -99,7 +97,6 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error("Error obteniendo stats:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return errorInterno(error, "obteniendo stats");
   }
 }
