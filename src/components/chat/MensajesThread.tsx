@@ -17,7 +17,7 @@ import { ArrowLeft, Shield, Loader2, ChevronUp, PenSquare, ExternalLink, FileTex
 import Link from "next/link";
 import { useChat, type Mensaje } from "@/contexts/ChatContext";
 import { ChatInput } from "./ChatInput";
-import { ReviewForm } from "@/components/reviews/ReviewForm";
+import { ReviewForm } from "@/components/resenas/ReviewForm";
 
 /** Formatear hora del mensaje */
 function formatearHora(fecha: string): string {

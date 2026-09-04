@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
-import { ReviewForm } from "@/components/reviews/ReviewForm";
+import { ReviewForm } from "@/components/resenas/ReviewForm";
 import { urlWhatsApp, normalizarWhatsApp } from "@/lib/whatsapp";
 
 const diasSemana = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
