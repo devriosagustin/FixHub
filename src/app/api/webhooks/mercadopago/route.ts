@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { obtenerPago, procesarPago } from "@/lib/mercadopago";
+import { obtenerPago, procesarPago, validarFirmaWebhook } from "@/lib/mercadopago";
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,6 +36,21 @@ export async function POST(request: NextRequest) {
     if (!paymentId) {
       console.log("[Webhook MercadoPago] ID de pago no encontrado");
       return NextResponse.json({ received: true });
+    }
+
+    // Validar la firma antes de confiar en la notificación y consultar MercadoPago
+    const validacion = validarFirmaWebhook({
+      xSignature: request.headers.get("x-signature"),
+      xRequestId: request.headers.get("x-request-id"),
+      dataIdQuery: request.nextUrl.searchParams.get("data.id"),
+    });
+
+    if (!validacion.ok) {
+      console.warn(
+        "[Webhook MercadoPago] Firma inválida, notificación rechazada:",
+        validacion.motivo
+      );
+      return NextResponse.json({ error: "Firma inválida" }, { status: 401 });
     }
 
     // Consultar el estado del pago en MercadoPago
