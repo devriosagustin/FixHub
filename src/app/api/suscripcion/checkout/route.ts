@@ -95,8 +95,14 @@ export async function POST(request: NextRequest) {
     // Crear la suscripción recurrente (preapproval) en MercadoPago
     const preapproval = new PreApproval(mpClient());
 
-    const esLocal = (process.env.NEXT_PUBLIC_APP_URL || "").includes("localhost");
-    // Igual que con Preference: en localhost MercadoPago rechaza back_url HTTP.
+    // A diferencia de Preference (pago único), en la API de Preapproval
+    // (suscripciones) el campo back_url es OBLIGATORIO: si se omite,
+    // MercadoPago responde "back_url is required" y el checkout falla.
+    // Por eso, a diferencia del checkout de pago único, acá SIEMPRE lo
+    // mandamos. En local, NEXT_PUBLIC_APP_URL debe apuntar a una URL
+    // https válida (por ejemplo un túnel de Cloudflare) para poder
+    // probar el flujo end-to-end; con "http://localhost" el alta del
+    // preapproval en MercadoPago puede rechazarlo igual.
     const backUrl = `${process.env.NEXT_PUBLIC_APP_URL}/suscripcion/exito?suscripcionId=${suscripcion.id}`;
 
     const result = await preapproval.create({
@@ -104,7 +110,7 @@ export async function POST(request: NextRequest) {
         reason: `Suscripción fixhub - Plan ${planInfo.nombre}`,
         external_reference: suscripcion.id,
         payer_email: session.user.email || undefined,
-        ...(!esLocal && { back_url: backUrl }),
+        back_url: backUrl,
         auto_recurring: {
           frequency: 1,
           frequency_type: "months",
