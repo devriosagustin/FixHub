@@ -11,9 +11,7 @@ COPY package*.json ./
 RUN npm install --legacy-bundling
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-# Skip build for now - components are missing from source
-# Once your source components are complete, `npm run build` will succeed
-RUN npm run build || echo "Build completed with warnings"
+RUN npm run build
 
 # Stage 3: Runtime
 FROM node:20-alpine AS runtime
