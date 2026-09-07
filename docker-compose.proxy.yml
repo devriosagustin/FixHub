@@ -1,0 +1,44 @@
+# docker-compose.proxy.yml — overlay OPCIONAL que agrega un reverse
+# proxy (Caddy) con TLS automático (Let's Encrypt) delante de "app".
+#
+# No se usa solo: layer sobre el docker-compose.yml base, recién cuando
+# haya un dominio real apuntando al host:
+#
+#   DOMAIN=tudominio.com ACME_EMAIL=vos@tudominio.com \
+#     docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d
+#
+# (o agregar DOMAIN/ACME_EMAIL a .env.docker si se usa --env-file).
+#
+# docker-compose.yml solo (sin este overlay) sigue funcionando igual que
+# hasta ahora, sirviendo HTTP plano en el puerto ${PORT:-3000} — pensado
+# para desarrollo local o para cuando el TLS lo termina otra cosa (el
+# proxy del proveedor de hosting, por ejemplo, en vez de este Caddy).
+#
+# Importante: con este overlay, MERCADOPAGO_WEBHOOK_SECRET,
+# NEXT_PUBLIC_APP_URL y NEXTAUTH_URL en docker-compose.yml/.env.docker
+# tienen que apuntar a "https://$DOMAIN", no a localhost.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: fixhub-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Definí DOMAIN (ej. tudominio.com) para usar este overlay}
+      ACME_EMAIL: ${ACME_EMAIL:?Definí ACME_EMAIL (para el registro con Let's Encrypt)}
+    volumes:
+      - ./Caddyfile:/etc/caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    command: caddy run --config /etc/caddyfile --adapter caddyfile
+    depends_on:
+      - app
+    networks:
+      - fixhub-network
+
+volumes:
+  caddy_data:
+  caddy_config:

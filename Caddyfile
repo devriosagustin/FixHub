@@ -1,0 +1,19 @@
+# Caddyfile — reverse proxy + TLS automático (Let's Encrypt) para fixhub.
+#
+# Se activa junto con docker-compose.proxy.yml (ver ese archivo y la
+# sección "Hosting / despliegue" de AGENTS.md). No hace nada mientras no
+# se use ese overlay — este archivo no se referencia desde
+# docker-compose.yml solo.
+#
+# Requiere que $DOMAIN apunte (registro DNS A/AAAA) a la IP del host
+# ANTES de levantar el contenedor de Caddy, y que los puertos 80/443
+# estén libres y abiertos en el firewall del host (Caddy los necesita
+# para el challenge HTTP-01 de Let's Encrypt).
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	reverse_proxy app:3000
+}
