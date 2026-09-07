@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { cancelarPreapproval } from "@/lib/mercadopago";
 
 export async function POST(_request: NextRequest) {
   try {
@@ -43,6 +44,25 @@ export async function POST(_request: NextRequest) {
       );
     }
 
+    // Si hay un preapproval real de MercadoPago detrás, cancelarlo ahí
+    // también: si no, MercadoPago sigue cobrando el mes que viene aunque
+    // en fixhub la suscripción ya figure como cancelada.
+    let avisoMercadoPago: string | undefined;
+    if (suscripcion.mercadopagoPreapprovalId) {
+      try {
+        await cancelarPreapproval(suscripcion.mercadopagoPreapprovalId);
+      } catch (mpErr) {
+        console.error(
+          "Error al cancelar el preapproval en MercadoPago:",
+          suscripcion.mercadopagoPreapprovalId,
+          mpErr
+        );
+        avisoMercadoPago =
+          " No pudimos confirmar la cancelación del cobro automático con MercadoPago; " +
+          "si seguís viendo un cargo el próximo mes, contactanos.";
+      }
+    }
+
     // Cancelar la suscripción (se mantiene hasta la fecha de fin)
     await prisma.suscripcion.update({
       where: { id: suscripcion.id },
@@ -53,10 +73,13 @@ export async function POST(_request: NextRequest) {
     });
 
     return NextResponse.json({
-      mensaje: "Suscripción cancelada. Se mantendrá activa hasta el " + 
+      mensaje:
+        "Suscripción cancelada. Se mantendrá activa hasta el " +
         (suscripcion.fechaFin
           ? new Date(suscripcion.fechaFin).toLocaleDateString("es-AR")
-          : "fin del período"),
+          : "fin del período") +
+        "." +
+        (avisoMercadoPago || ""),
     });
   } catch (err) {
     console.error("Error al cancelar suscripción:", err);
