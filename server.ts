@@ -12,6 +12,7 @@ import { createServer } from "http";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
 import { prisma } from "./src/lib/prisma";
+import { renovarSuscripcionesVencidas } from "./src/lib/suscripcion";
 
 // Detectar si estamos en modo desarrollo
 const dev = process.env.NODE_ENV !== "production";
@@ -310,10 +311,43 @@ app.prepare().then(() => {
     });
   });
 
+  // =============================================
+  // SCHEDULER: renovación automática de suscripciones vencidas
+  // =============================================
+  // Antes, renovarSuscripcionesVencidas() (ex verificar-vencidas) sólo se
+  // ejecutaba si alguien pegaba manualmente a la ruta HTTP protegida por
+  // ADMIN — sin un cron externo configurado, en la práctica nunca corría
+  // sola. Como este mismo proceso Node ya está arriba mientras la app
+  // vive (server custom, no serverless) y ya importa prisma, la corremos
+  // acá adentro directamente: una vez al arrancar (con un delay corto,
+  // para no competir con el resto del startup) y después cada 24hs. Es
+  // idempotente, así que un doble disparo o un reinicio del proceso no
+  // rompen nada. Esto no reemplaza el webhook real de MercadoPago
+  // (subscription_authorized_payment) para las suscripciones con
+  // preapproval — sigue siendo solo para el caso legado sin preapproval.
+  const UN_DIA_MS = 24 * 60 * 60 * 1000;
+
+  async function correrVerificacionVencidas() {
+    try {
+      const renovadas = await renovarSuscripcionesVencidas();
+      if (renovadas.length > 0) {
+        console.log(
+          `[Scheduler] Suscripciones renovadas automáticamente: ${renovadas.length}`
+        );
+      }
+    } catch (err) {
+      console.error("[Scheduler] Error verificando suscripciones vencidas:", err);
+    }
+  }
+
+  setTimeout(correrVerificacionVencidas, 30_000);
+  setInterval(correrVerificacionVencidas, UN_DIA_MS);
+
   // Iniciar el servidor HTTP
   httpServer.listen(port, () => {
     console.log(`> fixhub listo en http://${hostname}:${port}`);
     console.log(`> Modo: ${dev ? "desarrollo" : "producción"}`);
     console.log(`> Socket.io disponible en http://${hostname}:${port}/api/socketio`);
+    console.log(`> Scheduler: verificación de suscripciones vencidas cada 24hs`);
   });
 });
