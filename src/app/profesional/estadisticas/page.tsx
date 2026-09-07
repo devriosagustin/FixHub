@@ -2,8 +2,38 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Eye, Users, Star, MessageCircle, MessageSquare, Image as ImageIcon, Award, BarChart3 } from "lucide-react";
+import {
+  Eye,
+  Users,
+  Star,
+  MessageCircle,
+  MessageSquare,
+  Image as ImageIcon,
+  Award,
+  BarChart3,
+  Send,
+  TrendingUp,
+} from "lucide-react";
 import Link from "next/link";
+
+interface MetricasInteraccion {
+  totales: {
+    vistas: number;
+    chatsIniciados: number;
+    clicksWhatsapp: number;
+  };
+  tasaConversion: {
+    aChat: number | null;
+    aWhatsapp: number | null;
+  };
+  serieDiaria: {
+    fecha: string;
+    vistas: number;
+    chatsIniciados: number;
+    clicksWhatsapp: number;
+  }[];
+  periodoDias: number;
+}
 
 interface StatsData {
   visitas: number;
@@ -15,6 +45,7 @@ interface StatsData {
   totalFotos: number;
   totalCertificaciones: number;
   suscripcion: { plan: string; fechaFin: string | null } | null;
+  interacciones: MetricasInteraccion | null;
 }
 
 function StatCard({
@@ -39,6 +70,38 @@ function StatCard({
   );
 }
 
+function formatearFechaCorta(fecha: string): string {
+  // fecha viene como "YYYY-MM-DD"
+  const [, mes, dia] = fecha.split("-");
+  return `${dia}/${mes}`;
+}
+
+// Gráfico de barras simple, una métrica por gráfico (un solo color, sin
+// necesidad de leyenda) -- evita mezclar en un mismo gráfico series de
+// magnitudes muy distintas (vistas vs. chats/whatsapp) en un eje
+// compartido, que las aplastaría.
+function MiniBarChart({
+  datos,
+  color,
+}: {
+  datos: { fecha: string; valor: number }[];
+  color: string;
+}) {
+  const max = Math.max(1, ...datos.map((d) => d.valor));
+  return (
+    <div className="flex h-16 items-end gap-[3px]">
+      {datos.map((d) => (
+        <div
+          key={d.fecha}
+          title={`${formatearFechaCorta(d.fecha)}: ${d.valor}`}
+          className={`min-w-[3px] flex-1 rounded-t ${color}`}
+          style={{ height: `${Math.max(6, (d.valor / max) * 100)}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function EstadisticasPage() {
   const { data: session, status } = useSession();
   const [stats, setStats] = useState<StatsData | null>(null);
@@ -59,7 +122,7 @@ export default function EstadisticasPage() {
         const perfil = await perfilRes.json();
         setPerfilId(perfil.id);
 
-        const res = await fetch(`/api/profesionales/${perfil.id}/estadisticas`);
+        const res = await fetch(`/api/profesionales/${perfil.id}/estadisticas?dias=14`);
         if (res.ok) {
           setStats(await res.json());
         }
@@ -97,7 +160,7 @@ export default function EstadisticasPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-navy">
             <BarChart3 className="h-6 w-6 text-orange" />
-            Estadísticas de mi perfil
+            Estadísticas e interacción de mi perfil
           </h1>
           <p className="mt-1 text-sm text-text-light">
             Rendimiento de tu perfil profesional en fixhub
@@ -114,11 +177,60 @@ export default function EstadisticasPage() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <StatCard icon={Eye} label="Visitas" value={stats.visitas} color="bg-navy" />
         <StatCard icon={Users} label="Contactos" value={stats.contactos} color="bg-orange" />
+        <StatCard icon={Send} label="Clicks WhatsApp" value={stats.interacciones?.totales.clicksWhatsapp ?? 0} color="bg-orange-light" />
         <StatCard icon={MessageCircle} label="Mensajes" value={stats.totalMensajes} color="bg-success" />
         <StatCard icon={MessageSquare} label="Conversaciones" value={stats.totalConversaciones} color="bg-navy-light" />
-        <StatCard icon={ImageIcon} label="Fotos" value={stats.totalFotos} color="bg-anaranjado" />
+        <StatCard icon={ImageIcon} label="Fotos" value={stats.totalFotos} color="bg-navy-dark" />
         <StatCard icon={Award} label="Certificaciones" value={stats.totalCertificaciones} color="bg-warning" />
+        <StatCard
+          icon={TrendingUp}
+          label="Vistas → contacto"
+          value={
+            stats.interacciones &&
+            (stats.interacciones.tasaConversion.aChat !== null ||
+              stats.interacciones.tasaConversion.aWhatsapp !== null)
+              ? `${(
+                  (stats.interacciones.tasaConversion.aChat ?? 0) +
+                  (stats.interacciones.tasaConversion.aWhatsapp ?? 0)
+                ).toFixed(1)}%`
+              : "—"
+          }
+          color="bg-orange-dark"
+        />
       </div>
+
+      {/* Interacción diaria (últimos 14 días) */}
+      {stats.interacciones && stats.interacciones.serieDiaria.length > 0 && (
+        <div className="mt-6 grid gap-4 rounded-xl border border-border bg-card p-6 sm:grid-cols-3">
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-light">
+              Vistas (últimos {stats.interacciones.periodoDias} días)
+            </p>
+            <MiniBarChart
+              datos={stats.interacciones.serieDiaria.map((d) => ({ fecha: d.fecha, valor: d.vistas }))}
+              color="bg-navy"
+            />
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-light">
+              Chats iniciados (últimos {stats.interacciones.periodoDias} días)
+            </p>
+            <MiniBarChart
+              datos={stats.interacciones.serieDiaria.map((d) => ({ fecha: d.fecha, valor: d.chatsIniciados }))}
+              color="bg-orange"
+            />
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-light">
+              Clicks WhatsApp (últimos {stats.interacciones.periodoDias} días)
+            </p>
+            <MiniBarChart
+              datos={stats.interacciones.serieDiaria.map((d) => ({ fecha: d.fecha, valor: d.clicksWhatsapp }))}
+              color="bg-orange-light"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Reseñas destacadas */}
       <div className="mt-6 rounded-xl border border-border bg-card p-6">

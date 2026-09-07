@@ -48,6 +48,7 @@ model Usuario {
   notificaciones      Notificacion[]
   documentos          DocumentoVerificacion[]
   trabajosPublicados  Trabajo[]             @relation("ClienteTrabajos")
+  interaccionesPerfil InteraccionPerfil[]
 }
 
 // =============================================
@@ -101,6 +102,7 @@ model PerfilProfesional {
   conversaciones        Conversacion[]
   documentos            DocumentoVerificacion[]
   postulaciones         Postulacion[]
+  interacciones         InteraccionPerfil[]
 
   @@index([ciudad, latitud, longitud])
   @@index([estado])
@@ -382,4 +384,27 @@ model Postulacion {
   perfil      PerfilProfesional @relation(fields: [perfilId], references: [id], onDelete: Cascade)
 
   @@unique([trabajoId, perfilId])
+}
+
+
+// =============================================
+// MÉTRICAS DE INTERACCIÓN (dashboard de profesionales)
+// =============================================
+
+enum TipoInteraccion {
+  VISTA_PERFIL
+  CHAT_INICIADO
+  CLICK_WHATSAPP
+}
+
+model InteraccionPerfil {
+  id        String   @id @default(cuid())
+  perfilId  String
+  perfil    PerfilProfesional @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+  tipo      TipoInteraccion
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([perfilId, tipo, createdAt])
 }

@@ -88,6 +88,20 @@ export function ProfesionalProfileClient({
   const whatsappLink = urlWhatsApp(perfil.whatsapp, "Hola, vi tu perfil en fixhub y quería contactarte");
   const whatsappMostrar = normalizarWhatsApp(perfil.whatsapp);
 
+  // Métrica del dashboard del profesional. Fire-and-forget con
+  // keepalive:true para que el request sobreviva a la navegación que
+  // dispara el propio click (target="_blank" hacia wa.me), sin bloquear
+  // ni demorar el link. Si falla (red, perfil no aprobado, etc.) no
+  // importa: es solo una métrica informativa, no bloquea el contacto.
+  const registrarClickWhatsapp = () => {
+    fetch(`/api/perfiles/${perfil.id}/interacciones`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tipo: "CLICK_WHATSAPP" }),
+      keepalive: true,
+    }).catch(() => {});
+  };
+
   // Verificar si el usuario actual ya dejó una reseña
   const yaReseno = session?.user?.id
     ? perfil.resenas.some((r) => r.cliente.id === session.user.id)
@@ -209,6 +223,7 @@ export function ProfesionalProfileClient({
                 href={whatsappLink}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={registrarClickWhatsapp}
                 className="flex items-center gap-2 rounded-lg bg-orange px-6 py-3 font-semibold text-white transition-colors hover:bg-orange-dark"
               >
                 <IconoWhatsApp className="h-4 w-4" />
@@ -380,7 +395,13 @@ export function ProfesionalProfileClient({
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-navy">Contacto</h3>
             <div className="space-y-2 text-sm">
               {perfil.whatsapp && whatsappLink && (
-                <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-text hover:text-orange">
+                <a
+                  href={whatsappLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={registrarClickWhatsapp}
+                  className="flex items-center gap-2 text-text hover:text-orange"
+                >
                   <IconoWhatsApp className="h-4 w-4" /> {whatsappMostrar}
                 </a>
               )}

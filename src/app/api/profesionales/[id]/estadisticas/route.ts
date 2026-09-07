@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { obtenerMetricasPerfil } from "@/lib/metricas";
 
 // GET /api/profesionales/[id]/estadisticas - Ver mis estadísticas (propietario)
 export async function GET(
@@ -31,6 +32,7 @@ export async function GET(
       conversaciones,
       fotosCount,
       certCount,
+      interacciones,
     ] = await Promise.all([
       prisma.perfilProfesional.findUnique({
         where: { id },
@@ -47,6 +49,7 @@ export async function GET(
       prisma.conversacion.count({ where: { profesionalId: id } }),
       prisma.fotoGaleria.count({ where: { perfilId: id } }),
       prisma.certificacion.count({ where: { perfilId: id } }),
+      obtenerMetricasPerfil(id),
     ]);
 
     const suscripcion = await prisma.suscripcion.findUnique({
@@ -66,6 +69,7 @@ export async function GET(
       totalFotos: fotosCount,
       totalCertificaciones: certCount,
       suscripcion,
+      interacciones,
     });
   } catch (error) {
     return errorInterno(error, "obteniendo estadísticas");

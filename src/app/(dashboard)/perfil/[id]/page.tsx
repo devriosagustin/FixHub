@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ProfesionalProfileClient } from "./ProfileClient";
@@ -56,11 +57,29 @@ export default async function ProfesionalProfilePage({
     notFound();
   }
 
-  // Incrementar visitas
+  // Incrementar visitas (contador legado, se sigue usando en otros lados)
   prisma.perfilProfesional.update({
     where: { id },
     data: { visitas: { increment: 1 } },
   }).catch(() => {});
+
+  // Registrar el evento para el dashboard de métricas del profesional.
+  // Se excluye al propio dueño del perfil viéndose a sí mismo (no cuenta
+  // como interacción real). No hay forma de excluir a un visitante
+  // anónimo que resulta ser el dueño sin sesión iniciada -- limitación
+  // conocida, documentada en AGENTS.md.
+  const sesionVisitante = await auth();
+  if (sesionVisitante?.user?.id !== perfil.userId) {
+    prisma.interaccionPerfil
+      .create({
+        data: {
+          perfilId: id,
+          tipo: "VISTA_PERFIL",
+          usuarioId: sesionVisitante?.user?.id ?? null,
+        },
+      })
+      .catch(() => {});
+  }
 
   // Calcular promedio
   const promedio =

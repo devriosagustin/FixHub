@@ -208,6 +208,21 @@ export async function POST(request: NextRequest) {
       data: { contactos: { increment: 1 } },
     });
 
+    // Métricas del dashboard del profesional: solo se registra acá,
+    // en la rama de conversación NUEVA (el "if (existente)" de arriba ya
+    // cortó antes de llegar hasta acá si se estaba reabriendo una
+    // conversación existente), así que un mismo cliente reabriendo el
+    // chat no infla el conteo de "chats iniciados".
+    prisma.interaccionPerfil
+      .create({
+        data: {
+          perfilId: perfilProfesionalId,
+          tipo: "CHAT_INICIADO",
+          usuarioId: userId,
+        },
+      })
+      .catch(() => {});
+
     await prisma.notificacion.create({
       data: {
         usuarioId: perfil.userId,

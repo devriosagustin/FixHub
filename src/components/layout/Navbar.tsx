@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { Menu, X, Search, User, Briefcase, LogOut, LayoutDashboard, UserCircle, MessageCircle, CreditCard, Bell, ClipboardList } from "lucide-react";
+import { Menu, X, Search, User, Briefcase, LogOut, LayoutDashboard, UserCircle, MessageCircle, CreditCard, Bell, ClipboardList, BarChart3 } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
 
 export function Navbar() {
@@ -172,6 +172,15 @@ export function Navbar() {
                         Editar perfil profesional
                       </Link>
                     )}
+                    {esProfesional && (
+                      <Link
+                        href="/profesional/estadisticas"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-text hover:bg-surface"
+                      >
+                        <BarChart3 className="h-4 w-4" />
+                        Estadísticas
+                      </Link>
+                    )}
                     <button
                       onClick={() => signOut({ callbackUrl: "/" })}
                       className="flex w-full items-center gap-2 px-4 py-2 text-sm text-error hover:bg-error/5"
@@ -261,6 +270,16 @@ export function Navbar() {
                     >
                       <Briefcase className="h-4 w-4" />
                       Ver trabajos
+                    </Link>
+                  )}
+                  {esProfesional && (
+                    <Link
+                      href="/profesional/estadisticas"
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      Estadísticas
                     </Link>
                   )}
                   {!esProfesional && !esAdmin && (
