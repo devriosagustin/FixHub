@@ -6,7 +6,7 @@ services:
     container_name: fixhub-db
     environment:
       POSTGRES_USER: ${DB_USER:-contrataya}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Definí DB_PASSWORD en el entorno o en .env.docker (sin default inseguro)}
       POSTGRES_DB: ${DB_NAME:-contrataya}
     ports:
       - "${DB_PORT:-5432}:5432"
@@ -30,7 +30,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://${DB_USER:-contrataya}:${DB_PASSWORD:-changeme}@db:5432/${DB_NAME:-contrataya}?schema=public
+      DATABASE_URL: postgresql://${DB_USER:-contrataya}:${DB_PASSWORD:?Definí DB_PASSWORD en el entorno o en .env.docker (sin default inseguro)}@db:5432/${DB_NAME:-contrataya}?schema=public
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
