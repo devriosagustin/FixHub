@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { errorInterno } from "@/lib/api-auth";
+import { filtroSuscripcionPagaActiva } from "@/lib/suscripcion";
 
 // Fórmula de Haversine para calcular distancia entre dos puntos en km
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -42,8 +43,13 @@ export async function GET(request: NextRequest) {
     const orden = searchParams.get("orden") || "relevancia"; // cercania | puntuacion | resenas | recientes
 
     // Construir filtros Where
+    // Solo profesionales con suscripción paga activa aparecen en la
+    // búsqueda -- el plan GRATUITO da un perfil, pero no
+    // descubribilidad por búsqueda (mismo criterio que ya se usa para
+    // habilitar ver/postularse a trabajos publicados por clientes).
     const where: Record<string, unknown> = {
       estado: "APROBADO",
+      ...filtroSuscripcionPagaActiva(),
     };
 
     // Filtro por ciudad

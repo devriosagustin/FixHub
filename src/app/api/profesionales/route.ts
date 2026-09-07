@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { filtroSuscripcionPagaActiva } from "@/lib/suscripcion";
 
 // Schema de validación para registro de profesional
 const schemaRegistroProfesional = z.object({
@@ -133,8 +134,11 @@ export async function GET(request: NextRequest) {
     const oficio = searchParams.get("oficio");
     const ciudad = searchParams.get("ciudad");
 
+    // Mismo criterio que /api/busqueda: solo profesionales con
+    // suscripción paga activa aparecen en este listado público.
     const where: Record<string, unknown> = {
       estado: "APROBADO",
+      ...filtroSuscripcionPagaActiva(),
     };
 
     if (ciudad) {

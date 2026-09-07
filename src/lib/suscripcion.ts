@@ -55,6 +55,32 @@ export async function tieneSuscripcionPagaActiva(userId: string): Promise<boolea
   return suscripcion?.esPaga === true;
 }
 
+/**
+ * Mismo criterio que tieneSuscripcionPagaActiva, pero como fragmento de
+ * `where` de Prisma en vez de chequeo fila por fila -- para usar en
+ * findMany de listados públicos de profesionales (búsqueda,
+ * GET /api/profesionales), donde el filtro tiene que entrar en la query
+ * misma (con paginación a nivel DB, filtrar después en JS rompería el
+ * total/paginado).
+ *
+ * Uso: where: { estado: "APROBADO", ...filtroSuscripcionPagaActiva() }
+ *
+ * Cubre tanto "no tiene ninguna fila de Suscripcion" (perfil.suscripcion
+ * es opcional) como "tiene la fila pero está en GRATUITO, vencida,
+ * cancelada, o con fechaFin ya pasada" -- en ambos casos, no matchea.
+ */
+export function filtroSuscripcionPagaActiva() {
+  return {
+    suscripcion: {
+      is: {
+        plan: { in: ["PROFESIONAL", "PREMIUM"] as PlanId[] },
+        estado: "ACTIVA" as const,
+        OR: [{ fechaFin: null }, { fechaFin: { gt: new Date() } }],
+      },
+    },
+  };
+}
+
 
 /**
  * Renueva automáticamente las suscripciones ACTIVAS vencidas que tienen
