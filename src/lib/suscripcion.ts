@@ -56,6 +56,21 @@ export async function tieneSuscripcionPagaActiva(userId: string): Promise<boolea
 }
 
 /**
+ * Mismo criterio que tieneSuscripcionPagaActiva/obtenerSuscripcionActivaDeUsuario,
+ * pero evaluado sobre una suscripción YA OBTENIDA (por ejemplo, incluida
+ * en un `include` junto con el resto del perfil) en vez de hacer un
+ * segundo roundtrip a la DB por userId. Se usa en el perfil público
+ * (perfil/[id]/page.tsx) para decidir si el profesional es contactable.
+ */
+export function esSuscripcionPagaActiva(
+  suscripcion: { plan: string; estado: string; fechaFin: Date | null } | null | undefined
+): boolean {
+  if (!suscripcion || suscripcion.estado !== "ACTIVA") return false;
+  if (suscripcion.fechaFin && new Date(suscripcion.fechaFin) < new Date()) return false;
+  return suscripcion.plan !== "GRATUITO";
+}
+
+/**
  * Mismo criterio que tieneSuscripcionPagaActiva, pero como fragmento de
  * `where` de Prisma en vez de chequeo fila por fila -- para usar en
  * findMany de listados públicos de profesionales (búsqueda,

@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { ProfesionalProfileClient } from "./ProfileClient";
+import { esSuscripcionPagaActiva } from "@/lib/suscripcion";
 
 // Generar metadata dinámica para SEO
 export async function generateMetadata({
@@ -49,12 +50,34 @@ export default async function ProfesionalProfilePage({
         },
         orderBy: { createdAt: "desc" },
       },
-      suscripcion: { select: { plan: true } },
+      suscripcion: { select: { plan: true, estado: true, fechaFin: true } },
     },
   });
 
   if (!perfil || perfil.estado !== "APROBADO") {
     notFound();
+  }
+
+  const sesionVisitante = await auth();
+
+  // Profesionales sin suscripción paga activa no son contactables: lo
+  // más probable es que ya no estén usando fixhub activamente, así que
+  // en vez de mostrar el perfil (con botones de WhatsApp/chat que
+  // probablemente no lleven a ningún lado) se redirige ANTES de
+  // renderizar nada. Un admin puede seguir viendo cualquier perfil
+  // (moderación). Ver AGENTS.md, backlog resuelto de esta sesión.
+  const puedeVerse =
+    esSuscripcionPagaActiva(perfil.suscripcion) || sesionVisitante?.user?.rol === "ADMIN";
+
+  if (!puedeVerse) {
+    // El propio profesional viendo su perfil vencido/sin plan pago va
+    // directo a elegir un plan; cualquier otra persona (logueada como
+    // otro usuario, o anónima) va a una página que no promete que se
+    // lo pueda contactar y lo redirige a buscar otro profesional.
+    if (sesionVisitante?.user?.id === perfil.userId) {
+      redirect("/planes?motivo=perfil-inactivo");
+    }
+    redirect("/perfil-no-disponible");
   }
 
   // Incrementar visitas (contador legado, se sigue usando en otros lados)
@@ -68,7 +91,6 @@ export default async function ProfesionalProfilePage({
   // como interacción real). No hay forma de excluir a un visitante
   // anónimo que resulta ser el dueño sin sesión iniciada -- limitación
   // conocida, documentada en AGENTS.md.
-  const sesionVisitante = await auth();
   if (sesionVisitante?.user?.id !== perfil.userId) {
     prisma.interaccionPerfil
       .create({

@@ -11,10 +11,10 @@
 
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { Check, X, Loader2, Sparkles, Star, Crown } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Check, X, Loader2, Sparkles, Star, Crown, Info } from "lucide-react";
 import { PLANES, formatearPrecio, type PlanId } from "@/lib/plans";
 
 /** Icono según el plan */
@@ -27,6 +27,27 @@ function PlanIcon({ planId }: { planId: PlanId }) {
     default:
       return <Sparkles className="h-6 w-6" />;
   }
+}
+
+/** Banner contextual según el motivo por el que se llegó a /planes (ej: perfil inactivo) */
+function MotivoBanner() {
+  const searchParams = useSearchParams();
+  const motivo = searchParams.get("motivo");
+
+  if (motivo !== "perfil-inactivo") return null;
+
+  return (
+    <div className="mx-auto -mt-8 mb-8 max-w-3xl px-4">
+      <div className="flex items-start gap-3 rounded-xl border border-orange/30 bg-orange/10 p-4 text-sm text-navy">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-orange" />
+        <p>
+          Tu perfil no aparece en la búsqueda ni puede ser contactado porque
+          no tenés una suscripción paga activa. Elegí un plan para volver a
+          estar visible para los clientes.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function PlanesPage() {
@@ -112,6 +133,10 @@ export default function PlanesPage() {
           </p>
         </div>
       </div>
+
+      <Suspense fallback={null}>
+        <MotivoBanner />
+      </Suspense>
 
       {/* Planes */}
       <div className="mx-auto max-w-5xl px-4 -mt-8 pb-16">
