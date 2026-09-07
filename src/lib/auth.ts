@@ -3,6 +3,7 @@ import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { rateLimit, obtenerIp } from "@/lib/rate-limit";
 
 // Configuración de NextAuth con Google OAuth + Credentials (email/contraseña)
 // No usamos PrismaAdapter porque manejamos la creación de usuarios manualmente
@@ -19,11 +20,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Contraseña", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         if (!credentials?.email || !credentials?.password) return null;
 
         const email = credentials.email as string;
         const password = credentials.password as string;
+
+        // Rate limiting por IP y por email para frenar fuerza bruta contra
+        // el login. Clave separada de las de register/forgot-password. Si
+        // se supera el límite, se devuelve null igual que una contraseña
+        // incorrecta -- no se distingue el motivo en la respuesta, para no
+        // filtrar información sobre el estado del rate limit al cliente.
+        const ip = obtenerIp(request);
+        const limiteIp = rateLimit(`login-ip:${ip}`, { maxIntentos: 15, ventanaMs: 10 * 60 * 1000 });
+        const limiteEmail = rateLimit(`login-email:${email.toLowerCase()}`, {
+          maxIntentos: 8,
+          ventanaMs: 10 * 60 * 1000,
+        });
+        if (!limiteIp.permitido || !limiteEmail.permitido) return null;
 
         const usuario = await prisma.usuario.findUnique({
           where: { email },

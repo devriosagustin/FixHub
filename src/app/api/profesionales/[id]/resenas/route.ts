@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { urlHttpSchema } from "@/lib/validaciones";
 
 export async function POST(
   request: NextRequest,
@@ -128,6 +129,25 @@ export async function POST(
       );
     }
 
+    // Validar fotoUrl: viene del endpoint de upload (ReviewForm.tsx), pero
+    // el body lo manda el cliente como cualquier otro campo -- sin esto,
+    // se podía guardar directamente (sin pasar por el upload) una URL con
+    // esquema "javascript:"/"data:" que después se renderiza como <a href>
+    // en /admin/resenas (clickeable por un admin) y como <img src> en el
+    // perfil público. Mismo criterio que sitioWeb/videoUrl en
+    // profesionales/[id]/route.ts -- ver AGENTS.md, backlog de seguridad.
+    let fotoUrlValidada: string | null = null;
+    if (fotoUrl !== undefined && fotoUrl !== null && fotoUrl !== "") {
+      const parseo = urlHttpSchema.safeParse(fotoUrl);
+      if (!parseo.success) {
+        return NextResponse.json(
+          { error: "La foto adjunta no es una URL válida" },
+          { status: 400 }
+        );
+      }
+      fotoUrlValidada = parseo.data;
+    }
+
     // Crear la reseña
     const resena = await prisma.resena.create({
       data: {
@@ -135,7 +155,7 @@ export async function POST(
         clienteId: userId,
         puntuacion,
         comentario: comentario.trim(),
-        fotoUrl: fotoUrl || null,
+        fotoUrl: fotoUrlValidada,
         aprobada: true, // Por defecto aprobada; el admin puede rechazarla
       },
       include: {

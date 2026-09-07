@@ -2,17 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-
-// URL http(s) solamente -- rechaza "javascript:", "data:", etc. Se usa
-// para sitioWeb (se renderiza como <a href> en el perfil público) y
-// videoUrl (se renderiza directo como src de un <iframe>). Sin esto,
-// cualquier profesional podía guardar acá una URL con otro esquema y
-// quedaba embebida/clickeable para todos los visitantes de su perfil
-// -- ver AGENTS.md, backlog de seguridad.
-const urlHttpSchema = z
-  .string()
-  .url("URL inválida")
-  .refine((v) => /^https?:\/\//i.test(v), "La URL debe empezar con http:// o https://");
+import { urlHttpSchema } from "@/lib/validaciones";
 
 // videoUrl además se restringe a los dominios de video que el
 // formulario dice soportar (placeholder "Link de YouTube o Vimeo" en
