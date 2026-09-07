@@ -17,11 +17,10 @@
  * otras dos (VISTA_PERFIL, CHAT_INICIADO) se registran server-side,
  * donde ya se sabe con certeza que ocurrieron.
  *
- * No tiene rate-limiting propio todavía (ver AGENTS.md, backlog de
- * seguridad) — alguien podría hacer POST repetidos a mano para inflar
- * su propio contador de clicks. Impacto acotado (es solo una métrica
- * informativa del propio profesional, no afecta cobros ni acceso), pero
- * queda pendiente si se vuelve un problema real.
+ * Tiene un rate limit básico por IP (ver src/lib/rate-limit.ts) para
+ * no dejarla como una forma demasiado barata de inflar el contador de
+ * clicks a mano. Impacto igual acotado (es solo una métrica informativa
+ * del propio profesional, no afecta cobros ni acceso).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -29,6 +28,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { errorInterno } from "@/lib/api-auth";
+import { rateLimit, obtenerIp } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   tipo: z.literal("CLICK_WHATSAPP"),
@@ -40,6 +40,18 @@ export async function POST(
 ) {
   try {
     const { id: perfilId } = await params;
+
+    // Ver la nota del comentario de arriba: es una ruta pública, sin
+    // sesión requerida. 20 cada 10 min por IP alcanza de sobra para
+    // clicks reales (nadie hace 20 clicks de WhatsApp en 10 min) y
+    // limita bastante el margen para inflar el contador a mano.
+    const limite = rateLimit(`interaccion-perfil:${obtenerIp(request)}`, {
+      maxIntentos: 20,
+      ventanaMs: 10 * 60 * 1000,
+    });
+    if (!limite.permitido) {
+      return NextResponse.json({ error: "Demasiadas solicitudes" }, { status: 429 });
+    }
 
     const parseo = bodySchema.safeParse(await request.json().catch(() => ({})));
     if (!parseo.success) {

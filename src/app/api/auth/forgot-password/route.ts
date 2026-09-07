@@ -13,6 +13,7 @@ import { enviarEmail } from "@/lib/resend";
 import crypto from "crypto";
 import { z } from "zod";
 import { errorInterno } from "@/lib/api-auth";
+import { rateLimit, obtenerIp } from "@/lib/rate-limit";
 
 const schema = z.object({
   email: z.string().email("Email inválido"),
@@ -20,6 +21,19 @@ const schema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Frena spam de emails de reseteo (a costa de Resend, y de la
+    // bandeja de entrada de la persona apuntada): 5 cada 10 min por IP.
+    const limite = rateLimit(`forgot-password:${obtenerIp(request)}`, {
+      maxIntentos: 5,
+      ventanaMs: 10 * 60 * 1000,
+    });
+    if (!limite.permitido) {
+      return NextResponse.json(
+        { error: "Demasiados intentos. Probá de nuevo en unos minutos." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) {

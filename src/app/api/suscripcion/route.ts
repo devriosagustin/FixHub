@@ -131,10 +131,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { plan } = body;
 
-    // Validar el plan
-    if (!plan || !["GRATUITO", "PROFESIONAL", "PREMIUM"].includes(plan)) {
+    // Esta ruta SOLO activa el plan gratuito directamente. Los planes de
+    // pago (PROFESIONAL, PREMIUM) tienen que pasar por
+    // POST /api/suscripcion/checkout -> MercadoPago -> webhook/confirmación
+    // (procesarPago / procesarCambioPreapproval en src/lib/mercadopago.ts),
+    // que son los únicos lugares que verifican que el pago realmente
+    // ocurrió antes de poner estado:"ACTIVA". Antes esta ruta aceptaba
+    // "PROFESIONAL"/"PREMIUM" también y los activaba sin ninguna
+    // verificación de pago -- cualquier profesional con perfil aprobado
+    // podía autoconcederse Premium gratis para siempre (fechaFin quedaba
+    // null, así que ni siquiera lo agarraba el scheduler de vencimientos).
+    // El frontend (src/app/planes/page.tsx) ya solo llama acá para
+    // GRATUITO; los planes pagos usan /checkout. Ver AGENTS.md.
+    if (plan !== "GRATUITO") {
       return NextResponse.json(
-        { error: "Plan no válido" },
+        {
+          error:
+            "Los planes pagos se activan a través del checkout de MercadoPago (POST /api/suscripcion/checkout), no de esta ruta.",
+        },
         { status: 400 }
       );
     }

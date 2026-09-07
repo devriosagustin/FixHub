@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { enviarEmail } from "@/lib/resend";
 import { errorInterno } from "@/lib/api-auth";
+import { rateLimit, obtenerIp } from "@/lib/rate-limit";
 
 const schemaRegistro = z.object({
   nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
@@ -13,6 +14,18 @@ const schemaRegistro = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Frena registros masivos automatizados: 10 cada 10 min por IP.
+    const limite = rateLimit(`register:${obtenerIp(request)}`, {
+      maxIntentos: 10,
+      ventanaMs: 10 * 60 * 1000,
+    });
+    if (!limite.permitido) {
+      return NextResponse.json(
+        { error: "Demasiados intentos de registro. Probá de nuevo en unos minutos." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const datos = schemaRegistro.parse(body);
 

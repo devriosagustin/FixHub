@@ -1,6 +1,60 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, errorInterno } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+
+// URL http(s) solamente -- rechaza "javascript:", "data:", etc. Se usa
+// para sitioWeb (se renderiza como <a href> en el perfil público) y
+// videoUrl (se renderiza directo como src de un <iframe>). Sin esto,
+// cualquier profesional podía guardar acá una URL con otro esquema y
+// quedaba embebida/clickeable para todos los visitantes de su perfil
+// -- ver AGENTS.md, backlog de seguridad.
+const urlHttpSchema = z
+  .string()
+  .url("URL inválida")
+  .refine((v) => /^https?:\/\//i.test(v), "La URL debe empezar con http:// o https://");
+
+// videoUrl además se restringe a los dominios de video que el
+// formulario dice soportar (placeholder "Link de YouTube o Vimeo" en
+// profesional/perfil/page.tsx) -- cualquier otro dominio quedaba igual
+// embebido en un <iframe> en el perfil público sin este chequeo,
+// siendo el vector más directo para meter un iframe a un sitio
+// arbitrario en el perfil de otra persona.
+const HOSTS_VIDEO_PERMITIDOS = ["youtube.com", "youtu.be", "vimeo.com", "player.vimeo.com"];
+const videoUrlSchema = urlHttpSchema.refine((v) => {
+  try {
+    const host = new URL(v).hostname.replace(/^www\./, "");
+    return HOSTS_VIDEO_PERMITIDOS.includes(host);
+  } catch {
+    return false;
+  }
+}, "El video debe ser un link de YouTube o Vimeo");
+
+// Schema de actualización de perfil -- mismos criterios que
+// schemaRegistroProfesional en POST /api/profesionales, más las
+// validaciones de URL de arriba (que la ruta de creación ni siquiera
+// expone). Todos los campos opcionales: es un update parcial, solo se
+// aplican los que vengan en el body.
+const schemaActualizarProfesional = z.object({
+  titulo: z.string().min(3).optional(),
+  descripcion: z.string().min(20).optional(),
+  anosExperiencia: z.number().min(0).max(60).optional(),
+  direccion: z.string().optional(),
+  ciudad: z.string().min(1).optional(),
+  barrio: z.string().optional(),
+  latitud: z.number().min(-90).max(90).optional(),
+  longitud: z.number().min(-180).max(180).optional(),
+  radioCobertura: z.number().positive().optional(),
+  telefono: z.string().min(6).optional(),
+  whatsapp: z.string().regex(/^\+?[0-9\s()\-]+$/, "El número de WhatsApp no es válido").optional(),
+  sitioWeb: z.union([urlHttpSchema, z.literal("")]).optional(),
+  instagram: z.string().optional(),
+  facebook: z.string().optional(),
+  tipoPrecio: z.enum(["por_hora", "convenir"]).optional(),
+  precioPorHora: z.number().positive().optional(),
+  videoUrl: z.union([videoUrlSchema, z.literal("")]).optional(),
+  oficios: z.array(z.string()).optional(),
+});
 
 // GET /api/profesionales/[id] - Ver perfil público de un profesional
 export async function GET(
@@ -86,7 +140,14 @@ export async function PUT(
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    const body = await request.json();
+    const parseo = schemaActualizarProfesional.safeParse(await request.json());
+    if (!parseo.success) {
+      return NextResponse.json(
+        { error: parseo.error.issues[0]?.message || "Datos inválidos" },
+        { status: 400 }
+      );
+    }
+    const body = parseo.data;
 
     // Campos permitidos para actualización
     const camposPermitidos = {
