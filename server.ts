@@ -350,4 +350,49 @@ app.prepare().then(() => {
     console.log(`> Socket.io disponible en http://${hostname}:${port}/api/socketio`);
     console.log(`> Scheduler: verificación de suscripciones vencidas cada 24hs`);
   });
+
+  // =============================================
+  // SHUTDOWN GRACEFUL (SIGTERM / SIGINT)
+  // =============================================
+  // Antes no había ningún handler: Node corta el proceso de una ante
+  // SIGTERM (lo que manda "docker stop" / "docker compose down" / un
+  // restart del orquestador), sin drenar sockets ni cerrar la conexión
+  // de Prisma. En un deploy o restart eso puede cortar en seco un
+  // request en curso (p.ej. un webhook de MercadoPago llegando justo en
+  // ese momento) y deja conexiones de Postgres colgando hasta que el
+  // pool las expira. El Dockerfile ya usa dumb-init como PID 1 (reenvía
+  // bien la señal), así que acá solo falta manejarla: dejar de aceptar
+  // conexiones nuevas, cerrar sockets de Socket.io, desconectar Prisma,
+  // y recién ahí salir. Con un timeout de resguardo por si algo no
+  // cierra solo (docker por default espera ~10s antes de mandar SIGKILL).
+  let cerrando = false;
+  async function apagarGraceful(señal: string) {
+    if (cerrando) return;
+    cerrando = true;
+    console.log(`> Señal ${señal} recibida, apagando...`);
+
+    const forzarSalida = setTimeout(() => {
+      console.warn("> Apagado graceful tardó demasiado, forzando salida");
+      process.exit(1);
+    }, 8_000);
+    forzarSalida.unref();
+
+    try {
+      io.close();
+      await new Promise<void>((resolve, reject) => {
+        httpServer.close((err) => (err ? reject(err) : resolve()));
+      });
+      await prisma.$disconnect();
+      console.log("> Apagado graceful completo");
+      clearTimeout(forzarSalida);
+      process.exit(0);
+    } catch (err) {
+      console.error("> Error durante el apagado graceful:", err);
+      clearTimeout(forzarSalida);
+      process.exit(1);
+    }
+  }
+
+  process.on("SIGTERM", () => void apagarGraceful("SIGTERM"));
+  process.on("SIGINT", () => void apagarGraceful("SIGINT"));
 });

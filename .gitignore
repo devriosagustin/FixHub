@@ -58,3 +58,6 @@ dev-server.log
 
 # opencode
 opencode.db*
+
+# backups locales generados por scripts/backup-db.sh
+backups/
